@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { curriculumSlugs } from '@/lib/curriculum'
+export const dynamic = 'force-static'
 
 const siteUrl = 'https://www.xpertsedgetech.com'
 
