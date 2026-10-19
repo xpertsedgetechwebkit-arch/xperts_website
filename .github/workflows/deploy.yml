@@ -1,0 +1,103 @@
+name: Deploy website to Lightsail
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lightsail-production
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npx --yes pnpm@10 install --frozen-lockfile
+
+      - name: Check TypeScript
+        run: npx --yes pnpm@10 exec tsc --noEmit
+
+      - name: Build website
+        run: npx --yes pnpm@10 build
+
+      - name: Package website
+        run: |
+          test -s out/index.html
+          printf '%s\n' "$GITHUB_SHA" > out/deployment.txt
+          tar -czf website.tar.gz -C out .
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.LIGHTSAIL_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Upload and activate website
+        env:
+          DEPLOY_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          DEPLOY_USER: ${{ secrets.LIGHTSAIL_USER }}
+        run: |
+          set -euo pipefail
+          RELEASE="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
+
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=20 website.tar.gz \
+            "${TARGET}:/var/www/xpertsedge/releases/${RELEASE}.tar.gz"
+
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=20 "$TARGET" \
+            "bash -s -- '$RELEASE'" <<'REMOTE'
+          set -euo pipefail
+          RELEASE="$1"
+          BASE=/var/www/xpertsedge
+          umask 022
+
+          mkdir "$BASE/releases/$RELEASE"
+          tar -xzf "$BASE/releases/$RELEASE.tar.gz" \
+            -C "$BASE/releases/$RELEASE"
+          test -s "$BASE/releases/$RELEASE/index.html"
+          chmod -R u=rwX,go=rX "$BASE/releases/$RELEASE"
+
+          ln -s "$BASE/releases/$RELEASE" "$BASE/current-next"
+          mv -Tf "$BASE/current-next" "$BASE/current"
+          rm "$BASE/releases/$RELEASE.tar.gz"
+
+          curl --fail --silent --show-error \
+            http://127.0.0.1/deployment.txt
+          REMOTE
+
+      - name: Verify public deployment
+        env:
+          DEPLOY_HOST: ${{ secrets.LIGHTSAIL_HOST }}
+        run: |
+          curl --fail --silent --show-error \
+            --connect-timeout 20 --max-time 30 \
+            "http://${DEPLOY_HOST}/deployment.txt" \
+            -o deployed.txt
+          test "$(cat deployed.txt)" = "$GITHUB_SHA"
+
+      - name: Remove runner SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519
