@@ -1,0 +1,158 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-space-mono);
+  --font-heading: var(--font-inter);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-brand: var(--brand);
+  --color-brand-light: var(--brand-light);
+  --color-brand-dark: var(--brand-dark);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root {
+  /* Dark theme by default */
+  --background: #0a0a0a;
+  --foreground: #f0fdf4;
+  --card: #111111;
+  --card-foreground: #f0fdf4;
+  --popover: #111111;
+  --popover-foreground: #f0fdf4;
+
+  /* Brand green from logo */
+  --primary: #22c55e;
+  --primary-foreground: #0a0a0a;
+
+  /* Yellow-green accent from logo */
+  --secondary: #a3e635;
+  --secondary-foreground: #0a0a0a;
+
+  --muted: #1a1a1a;
+  --muted-foreground: #6b7280;
+
+  --accent: #84cc16;
+  --accent-foreground: #0a0a0a;
+
+  --destructive: #ef4444;
+  --border: rgba(34, 197, 94, 0.12);
+  --input: rgba(34, 197, 94, 0.1);
+  --ring: #22c55e;
+  --radius: 0.75rem;
+
+  /* Custom brand tokens */
+  --brand: #22c55e;
+  --brand-light: #a3e635;
+  --brand-dark: #15803d;
+  --brand-glow: rgba(34, 197, 94, 0.2);
+  --surface: #111111;
+  --surface-hover: #1a1a1a;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    scroll-behavior: smooth;
+  }
+  html {
+    @apply font-sans bg-background;
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  .brand-gradient {
+    background: linear-gradient(135deg, #22c55e 0%, #84cc16 60%, #a3e635 100%);
+  }
+  .brand-gradient-text {
+    background: linear-gradient(135deg, #22c55e 0%, #84cc16 60%, #a3e635 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .brand-border {
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+  .glow-green {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.25), 0 0 40px rgba(34, 197, 94, 0.1);
+  }
+  .surface-card {
+    background: #111111;
+    border: 1px solid rgba(34, 197, 94, 0.12);
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+  .marquee-vertical {
+    animation-name: scroll-up;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    will-change: transform;
+  }
+}
+
+@keyframes scroll-up {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+/* ── Flip card (certifications) ── */
+.flip-card {
+  perspective: 1200px;
+}
+.flip-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 2.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.flip-card:hover .flip-card-inner,
+.flip-card.is-flipped .flip-card-inner {
+  transform: rotateY(180deg);
+}
+.flip-face {
+  position: absolute;
+  inset: 0;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.flip-face-back {
+  transform: rotateY(180deg);
+}
