@@ -39,6 +39,7 @@ jobs:
 
       - name: Package website
         run: |
+          set -euo pipefail
           test -s out/index.html
           printf '%s\n' "$GITHUB_SHA" > out/deployment.txt
           tar -czf website.tar.gz -C out .
@@ -48,6 +49,7 @@ jobs:
           SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.LIGHTSAIL_KNOWN_HOSTS }}
         run: |
+          set -euo pipefail
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
@@ -68,9 +70,10 @@ jobs:
 
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
             -o ConnectTimeout=20 "$TARGET" \
-            "bash -s -- '$RELEASE'" <<'REMOTE'
+            "bash -s -- '$RELEASE' '$GITHUB_SHA'" <<'REMOTE'
           set -euo pipefail
           RELEASE="$1"
+          EXPECTED_SHA="$2"
           BASE=/var/www/xpertsedge
           umask 022
 
@@ -84,19 +87,23 @@ jobs:
           mv -Tf "$BASE/current-next" "$BASE/current"
           rm "$BASE/releases/$RELEASE.tar.gz"
 
-          curl --fail --silent --show-error \
-            http://127.0.0.1/deployment.txt
+          ACTUAL_SHA="$(curl --fail --silent --show-error \
+            --connect-timeout 10 --max-time 30 \
+            --resolve xpertsedgetech.com:443:127.0.0.1 \
+            https://xpertsedgetech.com/deployment.txt)"
+          test "$ACTUAL_SHA" = "$EXPECTED_SHA"
           REMOTE
 
       - name: Verify public deployment
-        env:
-          DEPLOY_HOST: ${{ secrets.LIGHTSAIL_HOST }}
         run: |
-          curl --fail --silent --show-error \
-            --connect-timeout 20 --max-time 30 \
-            "http://${DEPLOY_HOST}/deployment.txt" \
-            -o deployed.txt
-          test "$(cat deployed.txt)" = "$GITHUB_SHA"
+          set -euo pipefail
+          for DOMAIN in xpertsedgetech.com www.xpertsedgetech.com; do
+            curl --fail --silent --show-error \
+              --connect-timeout 20 --max-time 30 \
+              "https://${DOMAIN}/deployment.txt" \
+              -o deployed.txt
+            test "$(cat deployed.txt)" = "$GITHUB_SHA"
+          done
 
       - name: Remove runner SSH key
         if: always()
