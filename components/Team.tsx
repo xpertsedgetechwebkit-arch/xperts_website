@@ -2,7 +2,7 @@
 
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
-import { Linkedin, Phone } from 'lucide-react'
+import { Phone } from 'lucide-react'
 
 const team = [
   {
