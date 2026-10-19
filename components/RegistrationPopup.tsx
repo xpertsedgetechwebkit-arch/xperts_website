@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Send, CheckCircle, GraduationCap } from 'lucide-react'
 import { submitLead } from '@/lib/web3forms'
-import { filterName, filterPhone, filterEmail, filterOtherCourse, phoneAttrs, formatPhoneWithCode } from '@/lib/formFilters'
+import { filterName, filterPhone, filterEmail, filterOtherCourse, formatPhoneWithCode } from '@/lib/formFilters'
+import CountryCodeSelect from '@/components/CountryCodeSelect'
+import { DEFAULT_DEMO_COUNTRY, type CountryDialCode } from '@/lib/countryDialCodes'
 
 const courses = [
   'Java Full Stack',
@@ -28,6 +30,11 @@ export default function RegistrationPopup() {
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', email: '', phone: '', course: '', otherCourse: '' })
+  const [country, setCountry] = useState<CountryDialCode>(DEFAULT_DEMO_COUNTRY)
+  const phoneInputRef = useRef<HTMLInputElement>(null)
+  const indiaSelected = country.iso === 'IN'
+  // E.164 allows up to 15 digits including the calling code.
+  const maxPhoneDigits = indiaSelected ? 10 : 15 - country.dial.length
 
   // Show once per browser session, shortly after the page loads.
   useEffect(() => {
@@ -66,7 +73,9 @@ export default function RegistrationPopup() {
   ) => {
     let { value } = e.target
     if (e.target.name === 'name') value = filterName(value)
-    if (e.target.name === 'phone') value = filterPhone(value)
+    if (e.target.name === 'phone') {
+      value = indiaSelected ? filterPhone(value) : value.replace(/\D/g, '').slice(0, maxPhoneDigits)
+    }
     if (e.target.name === 'email') value = filterEmail(value)
     if (e.target.name === 'otherCourse') value = filterOtherCourse(value)
     setForm((prev) => ({ ...prev, [e.target.name]: value }))
@@ -83,7 +92,7 @@ export default function RegistrationPopup() {
       await submitLead({
         name: form.name,
         email: form.email,
-        phone: formatPhoneWithCode(form.phone),
+        phone: formatPhoneWithCode(form.phone, `+${country.dial}`),
         course,
         message: `Free demo registration${course ? ` for ${course}` : ''}.`,
         subject: `Demo registration${course ? ` — ${course}` : ''}`,
@@ -168,15 +177,30 @@ export default function RegistrationPopup() {
                     placeholder="Email address"
                     className="bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
                   />
-                  <div className="relative flex">
-                    <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-border bg-primary/10 text-primary text-sm font-semibold select-none flex-shrink-0">
-                      +91
-                    </span>
+                  <div className="relative flex min-w-0">
+                    <CountryCodeSelect
+                      value={country}
+                      disabled={submitting}
+                      onChange={(nextCountry) => {
+                        setCountry(nextCountry)
+                        // The earlier phone number may belong to a different country.
+                        // Clear it rather than submitting a mismatched code and number.
+                        setForm((previous) => ({ ...previous, phone: '' }))
+                        phoneInputRef.current?.focus()
+                      }}
+                    />
                     <input
-                      name="phone" type="tel" required {...phoneAttrs}
+                      ref={phoneInputRef}
+                      name="phone" type="tel" required
+                      inputMode="numeric"
+                      autoComplete="tel-national"
+                      pattern={indiaSelected ? '[0-9]{10}' : `[0-9]{4,${maxPhoneDigits}}`}
+                      minLength={indiaSelected ? 10 : 4}
+                      maxLength={maxPhoneDigits}
+                      title={indiaSelected ? 'Enter a 10-digit Indian mobile number' : `Enter 4 to ${maxPhoneDigits} digits for ${country.name} (without country code)`}
                       value={form.phone} onChange={handleChange}
-                      placeholder="10-digit mobile number"
-                      className="flex-1 bg-background border border-border rounded-r-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
+                      placeholder={indiaSelected ? '10-digit mobile number' : 'Mobile number'}
+                      className="min-w-0 flex-1 bg-background border border-border rounded-r-xl px-3 sm:px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
                     />
                   </div>
                   <select

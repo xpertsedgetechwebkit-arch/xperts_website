@@ -177,7 +177,12 @@ export default function AlumniWorksAt() {
         </div>
 
         {/* Logo Slider */}
-        <div className="relative overflow-hidden">
+        {/*
+          Keep the carousel horizontally clipped, but give zooming cards room
+          above and below the original track. The negative margin cancels the
+          added padding, so the normal page layout does not shift.
+        */}
+        <div className="relative -my-6 overflow-hidden py-6">
           {/* softer side fade */}
           <div className="absolute left-0 top-0 z-20 h-full w-12 md:w-24 bg-gradient-to-r from-background via-background/70 to-transparent pointer-events-none" />
 
@@ -201,7 +206,8 @@ export default function AlumniWorksAt() {
                   scale: 1.08,
                   y: -6,
                 }}
-                className="group flex-shrink-0"
+                transition={{ type: 'spring', stiffness: 280, damping: 25, mass: 0.75 }}
+                className="group relative z-0 flex-shrink-0 transform-gpu will-change-transform hover:z-10"
               >
                 <div className="w-44">
                   {/* Card */}

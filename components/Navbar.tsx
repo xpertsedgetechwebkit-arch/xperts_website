@@ -21,8 +21,10 @@ export default function Navbar() {
   const solid = scrolled || !isHome
 
   useEffect(() => {
+    // Sync immediately after mount (important after browser scroll restoration).
     const handleScroll = () => setScrolled(window.scrollY > 40)
-    window.addEventListener('scroll', handleScroll)
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
@@ -62,14 +64,21 @@ export default function Navbar() {
 
   return (
     <>
-      <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-150 ${
-          solid
-            ? 'bg-background/90 backdrop-blur-md border-b border-border shadow-lg shadow-black/40'
-            : 'bg-transparent'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 md:h-20">
+      <header className="fixed top-0 left-0 right-0 z-[100] isolate">
+        {/*
+          Keep the frosted-glass compositor layer mounted at all times.
+          Only its opacity changes on scroll, avoiding abrupt backdrop-filter
+          creation/removal while the animated hero headline passes beneath it.
+          Slightly stronger dark tint prevents bright headline ghosting while
+          preserving the original translucent glass + blur appearance.
+        */}
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 z-0 border-b border-border bg-background/94 backdrop-blur-md shadow-lg shadow-black/40 transition-opacity duration-200 ease-out will-change-[opacity] ${
+            solid ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 md:h-20">
           {/* Logo + Brand Name */}
           <button
             onClick={() => handleNav('#home')}
@@ -187,15 +196,6 @@ export default function Navbar() {
               Why Us
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-150 rounded-full" />
             </button>
-
-            {/* Events & Galleries */}
-            <Link
-              href="/events"
-              className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors duration-200 relative group"
-            >
-              Events &amp; Gallery
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-150 rounded-full" />
-            </Link>
 
             {/* Careers */}
             <Link
@@ -317,7 +317,6 @@ export default function Navbar() {
 
               {/* Extra pages */}
               {[
-                { label: 'Events & Gallery', href: '/events' },
                 { label: 'Careers', href: '/careers' },
                 { label: 'Certifications', href: '/certifications' },
                 { label: 'Contact', href: '/contact' },

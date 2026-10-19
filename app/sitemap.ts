@@ -1,5 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { curriculumSlugs } from '@/lib/curriculum'
+
+//hari changes
 export const dynamic = 'force-static'
 
 const siteUrl = 'https://www.xpertsedgetech.com'
@@ -13,7 +15,6 @@ const routes: Array<{ path: string; priority: number; changeFrequency: 'daily' |
   { path: '/demo', priority: 0.8, changeFrequency: 'monthly' },
   { path: '/contact', priority: 0.7, changeFrequency: 'monthly' },
   { path: '/careers', priority: 0.7, changeFrequency: 'weekly' },
-  { path: '/events', priority: 0.6, changeFrequency: 'weekly' },
 ]
 
 export default function sitemap(): MetadataRoute.Sitemap {

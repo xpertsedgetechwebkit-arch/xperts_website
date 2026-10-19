@@ -5,7 +5,9 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { CheckCircle, Send, User, Mail, Phone, Building2, BookOpen } from 'lucide-react'
 import { submitLead } from '@/lib/web3forms'
-import { filterName, filterPhone, filterEmail, phoneAttrs, formatPhoneWithCode } from '@/lib/formFilters'
+import { filterName, filterPhone, filterEmail, formatPhoneWithCode } from '@/lib/formFilters'
+import CountryCodeSelect from '@/components/CountryCodeSelect'
+import { DEFAULT_DEMO_COUNTRY, type CountryDialCode } from '@/lib/countryDialCodes'
 
 const courses = [
   'Java Full Stack',
@@ -28,6 +30,11 @@ const fadeUp = {
   visible: { opacity: 1, y: 0 },
 }
 
+// Require a real-looking email structure, including a domain and 2+ letter TLD.
+// Format validation alone cannot confirm that the mailbox exists.
+const EMAIL_PATTERN = String.raw`[A-Za-z0-9_%+\-]+(?:\.[A-Za-z0-9_%+\-]+)*@[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?)*\.[A-Za-z]{2,}`
+const EMAIL_REGEX = new RegExp(`^(?:${EMAIL_PATTERN})$`, 'i')
+
 export default function DemoPage() {
   const [form, setForm] = useState({
     name: '',
@@ -41,21 +48,37 @@ export default function DemoPage() {
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [country, setCountry] = useState<CountryDialCode>(DEFAULT_DEMO_COUNTRY)
+  const indiaSelected = country.iso === 'IN'
+  const maxPhoneDigits = indiaSelected ? 10 : 15 - country.dial.length
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     let { value } = e.target
     if (e.target.name === 'name') value = filterName(value)
-    if (e.target.name === 'phone') value = filterPhone(value)
+    if (e.target.name === 'phone') {
+      value = indiaSelected ? filterPhone(value) : value.replace(/\D/g, '').slice(0, maxPhoneDigits)
+    }
     if (e.target.name === 'email') value = filterEmail(value)
     setForm((prev) => ({ ...prev, [e.target.name]: value }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSubmitting(true)
     setError(null)
+
+    // Guard the API submission even if browser validation is bypassed.
+    if (!EMAIL_REGEX.test(form.email.trim())) {
+      setError('Enter a valid email address (example: name@example.com).')
+      return
+    }
+    const phoneDigits = form.phone.replace(/\D/g, '')
+    if (indiaSelected ? !/^[0-9]{10}$/.test(phoneDigits) : phoneDigits.length < 4 || phoneDigits.length > maxPhoneDigits) {
+      setError('Enter a valid mobile number for the selected country.')
+      return
+    }
+    setSubmitting(true)
 
     const course = form.course === 'Others' ? form.otherCourse.trim() : form.course
     const message =
@@ -66,7 +89,7 @@ export default function DemoPage() {
       await submitLead({
         name: form.name,
         email: form.email,
-        phone: formatPhoneWithCode(form.phone),
+        phone: formatPhoneWithCode(form.phone, `+${country.dial}`),
         company: form.company,
         course,
         message,
@@ -193,15 +216,27 @@ export default function DemoPage() {
                     <label htmlFor="phone" className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
                       Phone <span className="text-primary">*</span>
                     </label>
-                    <div className="relative flex">
-                      <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-border bg-primary/10 text-primary text-sm font-semibold select-none flex-shrink-0">
-                        +91
-                      </span>
+                    <div className="relative flex min-w-0">
+                      <CountryCodeSelect
+                        value={country}
+                        disabled={submitting}
+                        onChange={(nextCountry) => {
+                          setCountry(nextCountry)
+                          // Prevent mixing an existing national number with a new country code.
+                          setForm((previous) => ({ ...previous, phone: '' }))
+                        }}
+                      />
                       <input
-                        id="phone" name="phone" type="tel" required {...phoneAttrs}
+                        id="phone" name="phone" type="tel" required
+                        inputMode="numeric"
+                        autoComplete="tel-national"
+                        pattern={indiaSelected ? '[0-9]{10}' : `[0-9]{4,${maxPhoneDigits}}`}
+                        minLength={indiaSelected ? 10 : 4}
+                        maxLength={maxPhoneDigits}
+                        title={indiaSelected ? 'Enter a 10-digit Indian mobile number' : `Enter 4 to ${maxPhoneDigits} digits for ${country.name} (without the country code)`}
                         value={form.phone} onChange={handleChange}
-                        placeholder="10-digit mobile number"
-                        className="flex-1 bg-background border border-border rounded-r-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
+                        placeholder={indiaSelected ? '10-digit mobile number' : 'Mobile number'}
+                        className="min-w-0 flex-1 bg-background border border-border rounded-r-xl px-3 sm:px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
                       />
                     </div>
                   </div>
@@ -216,6 +251,10 @@ export default function DemoPage() {
                       <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                       <input
                         id="email" name="email" type="email" required
+                        autoComplete="email"
+                        pattern={EMAIL_PATTERN}
+                        maxLength={254}
+                        title="Enter a valid email address, for example name@example.com"
                         value={form.email} onChange={handleChange}
                         placeholder="you@email.com"
                         className="w-full bg-background border border-border rounded-xl pl-9 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"

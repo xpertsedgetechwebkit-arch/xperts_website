@@ -57,7 +57,6 @@ const footerLinks = [
       { label: 'About Us', href: '#about', isAnchor: true },
       { label: 'Services', href: '#services', isAnchor: true },
       { label: 'Why Choose Us', href: '#why-us', isAnchor: true },
-      { label: 'Events & Gallery', href: '/events', isAnchor: false },
       { label: 'Careers', href: '/careers', isAnchor: false },
       { label: 'Contact', href: '/contact', isAnchor: false },
     ],

@@ -372,33 +372,58 @@ function CategoryCard({
   index: number
   inView: boolean
 }) {
+  // Use a stable hover hitbox so the raised card never flickers at its edges.
+  const [isHovered, setIsHovered] = useState(false)
+
   return (
     <motion.div
-      layout
       variants={fadeUp}
       initial="hidden"
       animate={inView ? 'visible' : 'hidden'}
-      transition={{ duration: 0.5, delay: 0.05 + index * 0.08 }}
-      whileHover={{ y: -6 }}
-      className="group relative surface-card rounded-2xl p-6 pt-7 flex flex-col gap-4 overflow-hidden hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-150"
+      transition={{ duration: 0.55, delay: 0.05 + index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      className="group h-full"
     >
-      {/* Colored top bar */}
-      <span className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${meta.gradient}`} aria-hidden="true" />
+      <motion.div
+      // Keep reveal and hover animations on SEPARATE elements.
+      // Framer Motion spring controls both smooth lift AND smooth return.
+      animate={{ y: isHovered ? -8 : 0, scale: isHovered ? 1.018 : 1 }}
+      transition={{ type: 'spring', stiffness: 220, damping: 25, mass: 0.85 }}
+      onPointerMove={(event) => {
+        // Update CSS variables directly: the spotlight follows the cursor
+        // without React state changes or layout re-renders.
+        if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') return
+        const bounds = event.currentTarget.getBoundingClientRect()
+        event.currentTarget.style.setProperty('--course-hover-x', `${event.clientX - bounds.left}px`)
+        event.currentTarget.style.setProperty('--course-hover-y', `${event.clientY - bounds.top}px`)
+      }}
+      className="relative isolate surface-card rounded-2xl p-6 pt-7 h-full flex flex-col gap-4 overflow-hidden will-change-transform transition-[border-color,box-shadow] duration-300 ease-out group-hover:border-primary/35 group-hover:shadow-[0_18px_48px_-25px_rgba(34,197,94,0.36)] motion-reduce:transition-none"
+    >
+      {/* Keep the existing subtle spotlight, now combined with spring lift. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 opacity-0 transition-opacity duration-500 ease-out group-hover:opacity-100 motion-reduce:transition-none"
+        style={{ backgroundImage: 'radial-gradient(330px circle at var(--course-hover-x, 50%) var(--course-hover-y, 50%), rgba(34, 197, 94, 0.115), transparent 70%)' }}
+      />
 
-      <div className="flex items-start justify-between">
-        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center text-white shadow-lg`}>
+      {/* Colored top bar */}
+      <span className={`pointer-events-none absolute z-10 top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${meta.gradient}`} aria-hidden="true" />
+
+      <div className="relative z-10 flex items-start justify-between">
+        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center text-white shadow-lg transition-transform duration-500 ease-out motion-safe:group-hover:scale-[1.05]`}>
           {meta.icon}
         </div>
       </div>
 
-      <div>
-        <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">
+      <div className="relative z-10">
+        <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-500 ease-out">
           {meta.key}
         </h3>
         <p className="text-sm text-muted-foreground leading-relaxed mt-1.5">{meta.desc}</p>
       </div>
 
-      <ul className="flex flex-col gap-2 mt-1">
+      <ul className="relative z-10 flex flex-col gap-2 mt-1">
         {previews.map((title) => (
           <li key={title} className="flex items-center gap-2 text-sm text-muted-foreground">
             <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" aria-hidden="true" />
@@ -409,10 +434,11 @@ function CategoryCard({
 
       <button
         onClick={onExplore}
-        className="mt-auto inline-flex items-center justify-center gap-2 w-full py-3 rounded-full text-sm font-semibold brand-gradient text-background glow-green transition-all duration-200 hover:scale-[1.02]"
+        className="relative z-10 mt-auto inline-flex items-center justify-center gap-2 w-full py-3 rounded-full text-sm font-semibold brand-gradient text-background glow-green transition-transform duration-300 ease-out motion-safe:hover:scale-[1.02] motion-reduce:transition-none"
       >
         Explore Courses <ArrowRight size={15} />
       </button>
+      </motion.div>
     </motion.div>
   )
 }
