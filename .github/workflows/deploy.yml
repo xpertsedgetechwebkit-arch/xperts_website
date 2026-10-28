@@ -49,6 +49,40 @@ jobs:
           printf '%s\n' "$GITHUB_SHA" > out/deployment.txt
           tar -czf website.tar.gz -C out .
 
+          - name: Check GitHub OIDC identity
+        shell: bash
+        run: |
+          node <<'JS'
+          async function main() {
+            const url = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+            url.searchParams.set('audience', 'sts.amazonaws.com');
+
+            const response = await fetch(url, {
+              headers: {
+                Authorization: `Bearer ${process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}`
+              }
+            });
+
+            if (!response.ok) {
+              throw new Error(`OIDC request failed: HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+            const claims = JSON.parse(
+              Buffer.from(result.value.split('.')[1], 'base64url').toString()
+            );
+
+            for (const key of ['iss', 'aud', 'sub', 'repository', 'ref']) {
+              console.log(`${key}: ${claims[key]}`);
+            }
+          }
+
+          main().catch(() => {
+            console.error('Unable to inspect OIDC identity');
+            process.exitCode = 1;
+          });
+          JS
+
       - name: Authenticate to AWS
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
