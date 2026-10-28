@@ -1,15 +1,13 @@
-name: Deploy website to Lightsail
+name: Deploy website to EC2
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: lightsail-production
+  group: ec2-production
   cancel-in-progress: false
 
 jobs:
@@ -34,7 +32,12 @@ jobs:
       - name: Check TypeScript
         run: npx --yes pnpm@10 exec tsc --noEmit
 
+      - name: Test WordPress monitoring
+        run: node --test tests/*.test.mjs
+
       - name: Build website
+        env:
+          NEXT_PUBLIC_LEADS_DB_ENABLED: 'false'
         run: npx --yes pnpm@10 build
 
       - name: Package website
@@ -46,10 +49,12 @@ jobs:
 
       - name: Configure SSH
         env:
-          SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
-          KNOWN_HOSTS: ${{ secrets.LIGHTSAIL_KNOWN_HOSTS }}
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
+          test -n "$SSH_KEY"
+          test -n "$KNOWN_HOSTS"
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
@@ -57,10 +62,13 @@ jobs:
 
       - name: Upload and activate website
         env:
-          DEPLOY_HOST: ${{ secrets.LIGHTSAIL_HOST }}
-          DEPLOY_USER: ${{ secrets.LIGHTSAIL_USER }}
+          DEPLOY_HOST: ${{ secrets.EC2_HOST }}
+          DEPLOY_USER: ${{ secrets.EC2_USER }}
         run: |
           set -euo pipefail
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+
           RELEASE="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
 
@@ -80,30 +88,53 @@ jobs:
           mkdir "$BASE/releases/$RELEASE"
           tar -xzf "$BASE/releases/$RELEASE.tar.gz" \
             -C "$BASE/releases/$RELEASE"
+
           test -s "$BASE/releases/$RELEASE/index.html"
+          test "$(cat "$BASE/releases/$RELEASE/deployment.txt")" = "$EXPECTED_SHA"
           chmod -R u=rwX,go=rX "$BASE/releases/$RELEASE"
 
-          ln -s "$BASE/releases/$RELEASE" "$BASE/current-next"
-          mv -Tf "$BASE/current-next" "$BASE/current"
-          rm "$BASE/releases/$RELEASE.tar.gz"
+          PREVIOUS="$(readlink "$BASE/current" || true)"
 
-          ACTUAL_SHA="$(curl --fail --silent --show-error \
+          rollback() {
+            if [ -n "$PREVIOUS" ]; then
+              ln -sfn "$PREVIOUS" "$BASE/current-next"
+              mv -Tf "$BASE/current-next" "$BASE/current"
+            else
+              rm -f "$BASE/current"
+            fi
+          }
+
+          ln -sfn "$BASE/releases/$RELEASE" "$BASE/current-next"
+          mv -Tf "$BASE/current-next" "$BASE/current"
+
+          if ! ACTUAL_SHA="$(curl --fail --silent --show-error \
             --connect-timeout 10 --max-time 30 \
-            --resolve xpertsedgetech.com:443:127.0.0.1 \
-            https://xpertsedgetech.com/deployment.txt)"
-          test "$ACTUAL_SHA" = "$EXPECTED_SHA"
+            -H 'Host: xpertsedgetech.com' \
+            http://127.0.0.1/deployment.txt)"; then
+            rollback
+            exit 1
+          fi
+
+          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            rollback
+            exit 1
+          fi
+
+          rm -f "$BASE/releases/$RELEASE.tar.gz"
           REMOTE
 
-      - name: Verify public deployment
+      - name: Verify EC2 public deployment
+        env:
+          DEPLOY_HOST: ${{ secrets.EC2_HOST }}
         run: |
           set -euo pipefail
-          for DOMAIN in xpertsedgetech.com www.xpertsedgetech.com; do
-            curl --fail --silent --show-error \
-              --connect-timeout 20 --max-time 30 \
-              "https://${DOMAIN}/deployment.txt" \
-              -o deployed.txt
-            test "$(cat deployed.txt)" = "$GITHUB_SHA"
-          done
+          curl --fail --silent --show-error \
+            --retry 2 \
+            --connect-timeout 20 --max-time 30 \
+            "http://${DEPLOY_HOST}/deployment.txt" \
+            -o deployed.txt
+
+          test "$(cat deployed.txt)" = "$GITHUB_SHA"
 
       - name: Remove runner SSH key
         if: always()
