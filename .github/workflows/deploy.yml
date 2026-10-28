@@ -49,18 +49,26 @@ jobs:
           printf '%s\n' "$GITHUB_SHA" > out/deployment.txt
           tar -czf website.tar.gz -C out .
 
-          - name: Check GitHub OIDC identity
+      - name: Check GitHub OIDC identity
         shell: bash
         run: |
           node <<'JS'
           async function main() {
-            const url = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+            const requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+            const requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+
+            if (!requestUrl || !requestToken) {
+              throw new Error('OIDC request environment unavailable');
+            }
+
+            const url = new URL(requestUrl);
             url.searchParams.set('audience', 'sts.amazonaws.com');
 
             const response = await fetch(url, {
               headers: {
-                Authorization: `Bearer ${process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}`
-              }
+                Authorization: `Bearer ${requestToken}`
+              },
+              signal: AbortSignal.timeout(20000)
             });
 
             if (!response.ok) {
@@ -90,6 +98,7 @@ jobs:
           aws-region: ap-south-1
           role-session-name: GitHubEC2Deploy
           allowed-account-ids: '429552190319'
+          retry-max-attempts: 3
 
       - name: Configure SSH
         env:
@@ -98,6 +107,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           test -n "$SSH_KEY"
           test -n "$KNOWN_HOSTS"
 
@@ -135,6 +145,7 @@ jobs:
 
           test -n "$RULE_ID"
           test "$RULE_ID" != "None"
+
           echo "rule_id=$RULE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Upload and activate website
