@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { motion, useInView } from 'framer-motion'
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle } from 'lucide-react'
-import { submitLead } from '@/lib/web3forms'
+import { submitContactOrDemoLead } from '@/lib/leadSubmission'
 import { filterName, filterPhone, filterEmail, phoneAttrs, formatPhoneWithCode } from '@/lib/formFilters'
 
 const fadeUp = {
@@ -45,6 +45,8 @@ export default function Contact() {
   const [formState, setFormState] = useState({ name: '', email: '', phone: '', message: '' })
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null)
+  const leadIdRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -60,12 +62,14 @@ export default function Contact() {
     setSubmitting(true)
     setError(null)
     try {
-      await submitLead({
+      leadIdRef.current ||= crypto.randomUUID()
+      const delivery = await submitContactOrDemoLead({
         name: formState.name,
         email: formState.email,
         phone: formatPhoneWithCode(formState.phone),
         message: formState.message,
-      })
+      }, 'contact', leadIdRef.current)
+      setDeliveryNotice(delivery.notice)
       setSubmitted(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
@@ -193,6 +197,11 @@ export default function Contact() {
                 <p className="text-muted-foreground text-sm leading-relaxed">
                   Thank you for reaching out. We&apos;ll get back to you shortly.
                 </p>
+                {deliveryNotice && (
+                  <p className="text-amber-600 dark:text-amber-300 text-sm leading-relaxed" role="status">
+                    {deliveryNotice}
+                  </p>
+                )}
               </motion.div>
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col gap-5">

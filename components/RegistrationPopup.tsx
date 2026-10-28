@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Send, CheckCircle, GraduationCap } from 'lucide-react'
-import { submitLead } from '@/lib/web3forms'
+import { submitContactOrDemoLead } from '@/lib/leadSubmission'
 import { filterName, filterPhone, filterEmail, filterOtherCourse, formatPhoneWithCode } from '@/lib/formFilters'
 import CountryCodeSelect from '@/components/CountryCodeSelect'
 import { DEFAULT_DEMO_COUNTRY, type CountryDialCode } from '@/lib/countryDialCodes'
@@ -29,6 +29,9 @@ export default function RegistrationPopup() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null)
+  // Keep the same UUID if the user retries a failed submission.
+  const leadIdRef = useRef<string | null>(null)
   const [form, setForm] = useState({ name: '', email: '', phone: '', course: '', otherCourse: '' })
   const [country, setCountry] = useState<CountryDialCode>(DEFAULT_DEMO_COUNTRY)
   const phoneInputRef = useRef<HTMLInputElement>(null)
@@ -49,6 +52,8 @@ export default function RegistrationPopup() {
     const openNow = () => {
       setSubmitted(false)
       setError(null)
+      setDeliveryNotice(null)
+      leadIdRef.current = null
       setOpen(true)
     }
     window.addEventListener('open-registration', openNow)
@@ -56,6 +61,7 @@ export default function RegistrationPopup() {
   }, [])
 
   const close = () => {
+    if (submitted) leadIdRef.current = null
     setOpen(false)
     if (typeof window !== 'undefined') sessionStorage.setItem('reg_popup_seen', '1')
   }
@@ -89,14 +95,16 @@ export default function RegistrationPopup() {
     const course = form.course === 'Other' ? form.otherCourse.trim() : form.course
 
     try {
-      await submitLead({
+      leadIdRef.current ||= crypto.randomUUID()
+      const delivery = await submitContactOrDemoLead({
         name: form.name,
         email: form.email,
         phone: formatPhoneWithCode(form.phone, `+${country.dial}`),
         course,
         message: `Free demo registration${course ? ` for ${course}` : ''}.`,
         subject: `Demo registration${course ? ` — ${course}` : ''}`,
-      })
+      }, 'registration', leadIdRef.current)
+      setDeliveryNotice(delivery.notice)
       setSubmitted(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
@@ -155,6 +163,11 @@ export default function RegistrationPopup() {
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     Thanks! Our team will reach out within 24 hours to schedule your free demo.
                   </p>
+                  {deliveryNotice && (
+                    <p className="text-xs text-amber-400 leading-relaxed" role="status">
+                      {deliveryNotice}
+                    </p>
+                  )}
                   <button
                     onClick={close}
                     className="mt-2 px-6 py-2.5 rounded-full font-semibold brand-gradient text-background text-sm glow-green"

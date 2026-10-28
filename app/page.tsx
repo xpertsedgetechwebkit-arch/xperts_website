@@ -1,6 +1,7 @@
 import Hero from '@/components/Hero'
 import About from '@/components/About'
 import Services from '@/components/Services'
+import ExpertTrainers from '@/components/ExpertTrainers'
 import AlumniWorksAt from '@/components/AlumniWorksAt'
 import ClientsTicker from '@/components/ClientsTicker'
 import WhyChooseUs from '@/components/WhyChooseUs'
@@ -15,6 +16,7 @@ export default function Page() {
       <Hero />
       <About />
       <Services />
+      <ExpertTrainers />
       <AlumniWorksAt />
       {/* <ClientsTicker /> */}
       <WhyChooseUs />

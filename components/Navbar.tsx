@@ -215,6 +215,15 @@ export default function Navbar() {
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-150 rounded-full" />
             </Link>
 
+            {/* Blog */}
+            <Link
+              href="/blog"
+              className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors duration-200 relative group"
+            >
+              Blog
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-150 rounded-full" />
+            </Link>
+
             {/* Contact */}
             <Link
               href="/contact"
@@ -319,6 +328,7 @@ export default function Navbar() {
               {[
                 { label: 'Careers', href: '/careers' },
                 { label: 'Certifications', href: '/certifications' },
+                { label: 'Blog', href: '/blog' },
                 { label: 'Contact', href: '/contact' },
               ].map((item, i) => (
                 <motion.div

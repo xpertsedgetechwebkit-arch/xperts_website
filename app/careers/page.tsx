@@ -6,7 +6,7 @@ import {
   MapPin, Clock, Briefcase, GraduationCap, ArrowRight,
   Send, CheckCircle, User, Mail, Phone, Award, Link2,
 } from 'lucide-react'
-import { submitLead } from '@/lib/web3forms'
+import { submitContactOrDemoLead } from '@/lib/leadSubmission'
 import { filterName, filterPhone, filterEmail, phoneAttrs, hasLetterAttrs, isResumeLinkValid } from '@/lib/formFilters'
 
 const openings = [
@@ -73,6 +73,8 @@ export default function CareersPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null)
+  const leadIdRef = useRef<string | null>(null)
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -92,6 +94,7 @@ export default function CareersPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setDeliveryNotice(null)
 
     if (!isResumeLinkValid(form.resumeLink)) {
       setError('Please enter a valid Google Drive or LinkedIn link (starting with https://).')
@@ -112,14 +115,17 @@ export default function CareersPage() {
     ].join('\n')
 
     try {
-      await submitLead({
+      // Reuse this ID for retries so a partial Web3Forms failure cannot double-save to PostgreSQL.
+      leadIdRef.current ||= crypto.randomUUID()
+      const delivery = await submitContactOrDemoLead({
         name: form.name,
         email: form.email,
         phone: form.phone,
         course: position,
         message,
         subject: `Job Application — ${position} — ${form.name}`,
-      })
+      }, 'careers', leadIdRef.current)
+      setDeliveryNotice(delivery.notice)
       setSubmitted(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
@@ -265,6 +271,11 @@ export default function CareersPage() {
                 <p className="text-muted-foreground max-w-sm leading-relaxed">
                   Thank you for applying. Our HR team will review your profile and get back to you soon.
                 </p>
+                {deliveryNotice && (
+                  <p role="status" className="text-sm text-amber-400 max-w-md leading-relaxed">
+                    {deliveryNotice}
+                  </p>
+                )}
               </motion.div>
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col gap-5">

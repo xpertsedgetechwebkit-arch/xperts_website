@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { CheckCircle, Send, User, Mail, Phone, Building2, BookOpen } from 'lucide-react'
-import { submitLead } from '@/lib/web3forms'
+import { submitContactOrDemoLead } from '@/lib/leadSubmission'
 import { filterName, filterPhone, filterEmail, formatPhoneWithCode } from '@/lib/formFilters'
 import CountryCodeSelect from '@/components/CountryCodeSelect'
 import { DEFAULT_DEMO_COUNTRY, type CountryDialCode } from '@/lib/countryDialCodes'
@@ -47,6 +47,8 @@ export default function DemoPage() {
   })
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null)
+  const leadIdRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [country, setCountry] = useState<CountryDialCode>(DEFAULT_DEMO_COUNTRY)
   const indiaSelected = country.iso === 'IN'
@@ -86,7 +88,8 @@ export default function DemoPage() {
       `Free demo registration${course ? ` for ${course}` : ''}.`
 
     try {
-      await submitLead({
+      leadIdRef.current ||= crypto.randomUUID()
+      const delivery = await submitContactOrDemoLead({
         name: form.name,
         email: form.email,
         phone: formatPhoneWithCode(form.phone, `+${country.dial}`),
@@ -94,7 +97,8 @@ export default function DemoPage() {
         course,
         message,
         subject: `Free demo registration${course ? ` — ${course}` : ''}`,
-      })
+      }, 'free_demo', leadIdRef.current)
+      setDeliveryNotice(delivery.notice)
       setSubmitted(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
@@ -176,6 +180,11 @@ export default function DemoPage() {
                   Thank you for registering. Our team will reach out to you within 24 hours to
                   schedule your free demo session.
                 </p>
+                {deliveryNotice && (
+                  <p className="max-w-md text-amber-600 dark:text-amber-300 text-sm leading-relaxed" role="status">
+                    {deliveryNotice}
+                  </p>
+                )}
                 <div className="flex flex-col sm:flex-row gap-3 mt-2">
                   <Link
                     href="/#courses"

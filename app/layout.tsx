@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import Script from 'next/script'
 import { Inter, Space_Mono } from 'next/font/google'
 import './globals.css'
@@ -6,6 +7,7 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import WhatsAppButton from '@/components/WhatsAppButton'
 import RegistrationPopup from '@/components/RegistrationPopup'
+import UTMTracker from '@/components/UTMTracker'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -170,6 +172,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
+        {/* Remember inbound UTM values before navigating to other pages. */}
+        <Suspense fallback={null}>
+          <UTMTracker />
+        </Suspense>
         <Navbar />
         {children}
         <Footer />
