@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: ec2-production
@@ -41,31 +42,75 @@ jobs:
         run: npx --yes pnpm@10 build
 
       - name: Package website
+        shell: bash
         run: |
           set -euo pipefail
           test -s out/index.html
           printf '%s\n' "$GITHUB_SHA" > out/deployment.txt
           tar -czf website.tar.gz -C out .
 
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::429552190319:role/XpertsEdgeGitHubEC2DeployRole
+          aws-region: ap-south-1
+          role-session-name: GitHubEC2Deploy
+          allowed-account-ids: '429552190319'
+
       - name: Configure SSH
         env:
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        shell: bash
         run: |
           set -euo pipefail
           test -n "$SSH_KEY"
           test -n "$KNOWN_HOSTS"
+
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Allow temporary SSH access
+        id: ssh_access
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RUNNER_IP="$(curl -4 --fail --silent --show-error \
+            --connect-timeout 10 --max-time 20 \
+            https://checkip.amazonaws.com | tr -d '[:space:]')"
+
+          python3 - "$RUNNER_IP" <<'PY'
+          import ipaddress
+          import sys
+
+          address = ipaddress.ip_address(sys.argv[1])
+          if address.version != 4 or not address.is_global:
+              raise SystemExit("Expected a public IPv4 address")
+          PY
+
+          RULE_ID="$(aws ec2 authorize-security-group-ingress \
+            --group-id sg-078e53f9aab04fd98 \
+            --ip-permissions \
+            "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description=GitHub-deploy-${GITHUB_RUN_ID}}]" \
+            --query 'SecurityGroupRules[0].SecurityGroupRuleId' \
+            --output text)"
+
+          test -n "$RULE_ID"
+          test "$RULE_ID" != "None"
+          echo "rule_id=$RULE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Upload and activate website
         env:
           DEPLOY_HOST: ${{ secrets.EC2_HOST }}
           DEPLOY_USER: ${{ secrets.EC2_USER }}
+        shell: bash
         run: |
           set -euo pipefail
+
           test -n "$DEPLOY_HOST"
           test -n "$DEPLOY_USER"
 
@@ -73,24 +118,29 @@ jobs:
           TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
 
           scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=20 website.tar.gz \
+            -o ConnectionAttempts=3 -o ConnectTimeout=20 \
+            website.tar.gz \
             "${TARGET}:/var/www/xpertsedge/releases/${RELEASE}.tar.gz"
 
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=20 "$TARGET" \
+            -o ConnectionAttempts=3 -o ConnectTimeout=20 \
+            "$TARGET" \
             "bash -s -- '$RELEASE' '$GITHUB_SHA'" <<'REMOTE'
           set -euo pipefail
+
           RELEASE="$1"
           EXPECTED_SHA="$2"
           BASE=/var/www/xpertsedge
           umask 022
 
           mkdir "$BASE/releases/$RELEASE"
+
           tar -xzf "$BASE/releases/$RELEASE.tar.gz" \
             -C "$BASE/releases/$RELEASE"
 
           test -s "$BASE/releases/$RELEASE/index.html"
           test "$(cat "$BASE/releases/$RELEASE/deployment.txt")" = "$EXPECTED_SHA"
+
           chmod -R u=rwX,go=rX "$BASE/releases/$RELEASE"
 
           PREVIOUS="$(readlink "$BASE/current" || true)"
@@ -126,8 +176,10 @@ jobs:
       - name: Verify EC2 public deployment
         env:
           DEPLOY_HOST: ${{ secrets.EC2_HOST }}
+        shell: bash
         run: |
           set -euo pipefail
+
           curl --fail --silent --show-error \
             --retry 2 \
             --connect-timeout 20 --max-time 30 \
@@ -135,6 +187,18 @@ jobs:
             -o deployed.txt
 
           test "$(cat deployed.txt)" = "$GITHUB_SHA"
+
+      - name: Remove temporary SSH access
+        if: always() && steps.ssh_access.outputs.rule_id != ''
+        env:
+          RULE_ID: ${{ steps.ssh_access.outputs.rule_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          aws ec2 revoke-security-group-ingress \
+            --group-id sg-078e53f9aab04fd98 \
+            --security-group-rule-ids "$RULE_ID"
 
       - name: Remove runner SSH key
         if: always()
