@@ -1,4 +1,4 @@
-name: Deploy website to EC2
+name: Deploy website and backend to EC2
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout code
@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install dependencies
+      - name: Install website dependencies
         run: npx --yes pnpm@10 install --frozen-lockfile
 
       - name: Check TypeScript
@@ -36,60 +36,34 @@ jobs:
       - name: Test WordPress monitoring
         run: node --test tests/*.test.mjs
 
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Test backend
+        working-directory: backend
+        run: npm test
+
       - name: Build website
         env:
           NEXT_PUBLIC_LEADS_DB_ENABLED: 'false'
+          NEXT_PUBLIC_LEADS_API_URL: '/api/leads'
         run: npx --yes pnpm@10 build
 
-      - name: Package website
+      - name: Package website and backend
         shell: bash
         run: |
           set -euo pipefail
+
           test -s out/index.html
           printf '%s\n' "$GITHUB_SHA" > out/deployment.txt
           tar -czf website.tar.gz -C out .
 
-      - name: Check GitHub OIDC identity
-        shell: bash
-        run: |
-          node <<'JS'
-          async function main() {
-            const requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
-            const requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+          test -s backend/src/server.js
+          test -s backend/package-lock.json
 
-            if (!requestUrl || !requestToken) {
-              throw new Error('OIDC request environment unavailable');
-            }
-
-            const url = new URL(requestUrl);
-            url.searchParams.set('audience', 'sts.amazonaws.com');
-
-            const response = await fetch(url, {
-              headers: {
-                Authorization: `Bearer ${requestToken}`
-              },
-              signal: AbortSignal.timeout(20000)
-            });
-
-            if (!response.ok) {
-              throw new Error(`OIDC request failed: HTTP ${response.status}`);
-            }
-
-            const result = await response.json();
-            const claims = JSON.parse(
-              Buffer.from(result.value.split('.')[1], 'base64url').toString()
-            );
-
-            for (const key of ['iss', 'aud', 'sub', 'repository', 'ref']) {
-              console.log(`${key}: ${claims[key]}`);
-            }
-          }
-
-          main().catch(() => {
-            console.error('Unable to inspect OIDC identity');
-            process.exitCode = 1;
-          });
-          JS
+          tar -czf backend.tar.gz -C backend \
+            package.json package-lock.json src
 
       - name: Authenticate to AWS
         uses: aws-actions/configure-aws-credentials@v6.3.0
@@ -114,8 +88,9 @@ jobs:
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+          ssh-keygen -y -P '' -f ~/.ssh/id_ed25519 > /dev/null
 
       - name: Allow temporary SSH access
         id: ssh_access
@@ -145,10 +120,9 @@ jobs:
 
           test -n "$RULE_ID"
           test "$RULE_ID" != "None"
-
           echo "rule_id=$RULE_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Upload and activate website
+      - name: Upload deployment packages
         env:
           DEPLOY_HOST: ${{ secrets.EC2_HOST }}
           DEPLOY_USER: ${{ secrets.EC2_USER }}
@@ -167,6 +141,104 @@ jobs:
             website.tar.gz \
             "${TARGET}:/var/www/xpertsedge/releases/${RELEASE}.tar.gz"
 
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectionAttempts=3 -o ConnectTimeout=20 \
+            backend.tar.gz \
+            "${TARGET}:/opt/xpertsedge-api/releases/${RELEASE}.tar.gz"
+
+      - name: Deploy backend and check database readiness
+        env:
+          DEPLOY_HOST: ${{ secrets.EC2_HOST }}
+          DEPLOY_USER: ${{ secrets.EC2_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RELEASE="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
+
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectionAttempts=3 -o ConnectTimeout=20 \
+            "$TARGET" "bash -s -- '$RELEASE'" <<'REMOTE'
+          set -euo pipefail
+
+          RELEASE="$1"
+          BASE=/opt/xpertsedge-api
+          umask 022
+
+          mkdir "$BASE/releases/$RELEASE"
+          tar -xzf "$BASE/releases/$RELEASE.tar.gz" \
+            -C "$BASE/releases/$RELEASE"
+
+          cd "$BASE/releases/$RELEASE"
+          test -s src/server.js
+          npm ci --omit=dev --no-audit --no-fund
+
+          PREVIOUS="$(readlink "$BASE/current" || true)"
+
+          restore_previous() {
+            if [ -n "$PREVIOUS" ]; then
+              ln -sfn "$PREVIOUS" "$BASE/current-next"
+              mv -Tf "$BASE/current-next" "$BASE/current"
+              sudo -n /usr/bin/systemctl restart xpertsedge-api.service
+            else
+              echo "No previous backend release; inspect service logs."
+            fi
+          }
+
+          ln -sfn "$BASE/releases/$RELEASE" "$BASE/current-next"
+          mv -Tf "$BASE/current-next" "$BASE/current"
+
+          if ! sudo -n /usr/bin/systemctl restart xpertsedge-api.service; then
+            restore_previous
+            exit 1
+          fi
+
+          HEALTHY=false
+
+          for ATTEMPT in $(seq 1 12); do
+            if curl --fail --silent --show-error \
+              --connect-timeout 3 --max-time 12 \
+              http://127.0.0.1:3001/api/health/ready \
+              -o /dev/null; then
+              HEALTHY=true
+              break
+            fi
+
+            echo "Waiting for backend readiness: attempt $ATTEMPT"
+            sleep 3
+          done
+
+          if [ "$HEALTHY" != "true" ]; then
+            echo "Backend database readiness failed."
+            restore_previous
+            exit 1
+          fi
+
+          if ! curl --fail --silent --show-error \
+            --connect-timeout 3 --max-time 15 \
+            -H 'Host: xpertsedgetech.com' \
+            http://127.0.0.1/api/health \
+            -o /dev/null; then
+            restore_previous
+            exit 1
+          fi
+
+          rm -f "$BASE/releases/$RELEASE.tar.gz"
+          echo "Backend and database connection checks passed."
+          REMOTE
+
+      - name: Activate website
+        env:
+          DEPLOY_HOST: ${{ secrets.EC2_HOST }}
+          DEPLOY_USER: ${{ secrets.EC2_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RELEASE="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
+
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
             -o ConnectionAttempts=3 -o ConnectTimeout=20 \
             "$TARGET" \
@@ -179,7 +251,6 @@ jobs:
           umask 022
 
           mkdir "$BASE/releases/$RELEASE"
-
           tar -xzf "$BASE/releases/$RELEASE.tar.gz" \
             -C "$BASE/releases/$RELEASE"
 
@@ -187,7 +258,6 @@ jobs:
           test "$(cat "$BASE/releases/$RELEASE/deployment.txt")" = "$EXPECTED_SHA"
 
           chmod -R u=rwX,go=rX "$BASE/releases/$RELEASE"
-
           PREVIOUS="$(readlink "$BASE/current" || true)"
 
           rollback() {
@@ -232,6 +302,10 @@ jobs:
             -o deployed.txt
 
           test "$(cat deployed.txt)" = "$GITHUB_SHA"
+
+          curl --fail --silent --show-error \
+            --connect-timeout 10 --max-time 20 \
+            "http://${DEPLOY_HOST}/api/health"
 
       - name: Remove temporary SSH access
         if: always() && steps.ssh_access.outputs.rule_id != ''
