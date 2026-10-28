@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { getPublishedPosts } from '@/lib/wordpress'
+import WordPressArticleCards from '@/components/blog/WordPressArticleCards'
 import {
   ArrowRight,
   ArrowUpRight,
@@ -208,7 +210,10 @@ const guides = [
 const focusStyles =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-background'
 
-export default function BlogPage() {
+export default async function BlogPage() {
+  const posts = await getPublishedPosts()
+  const featuredPost = posts[0]
+
   return (
     <main className="min-h-screen overflow-x-hidden bg-background text-foreground">
       <section aria-labelledby="blog-heading" className="relative isolate overflow-hidden border-b border-primary/10 px-4 pb-16 pt-32 sm:px-6 sm:pb-20 sm:pt-36 lg:px-8 lg:pb-24 lg:pt-44">
@@ -325,11 +330,11 @@ export default function BlogPage() {
               <span className="relative font-mono text-[10px] uppercase tracking-[0.2em] text-foreground/60">Good questions lead to useful tests.</span>
             </div>
             <div className="flex flex-col justify-center p-7 sm:p-10 lg:p-12">
-              <span className="mb-4 w-fit rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">Featured guide · Software Testing</span>
-              <h3 className="text-2xl font-bold leading-tight tracking-tight text-balance sm:text-3xl">Before your first test case, ask a better question.</h3>
-              <p className="mt-4 text-sm leading-7 text-foreground/60">A useful test starts with understanding the person using the product. Learn to connect user journeys, risk, and clear evidence through a simple login exercise.</p>
-              <a href="#software-testing" className={`mt-7 inline-flex w-fit items-center gap-2 rounded-sm text-sm font-semibold text-primary transition-colors hover:text-secondary motion-reduce:transition-none ${focusStyles}`}>
-                Read the testing guide <ArrowUpRight aria-hidden="true" size={18} />
+              <span className="mb-4 w-fit rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">Featured guide · {featuredPost?.category ?? 'Software Testing'}</span>
+              <h3 className="text-2xl font-bold leading-tight tracking-tight text-balance sm:text-3xl">{featuredPost?.title ?? 'Before your first test case, ask a better question.'}</h3>
+              <p className="mt-4 text-sm leading-7 text-foreground/60">{featuredPost?.excerpt ?? 'A useful test starts with understanding the person using the product. Learn to connect user journeys, risk, and clear evidence through a simple login exercise.'}</p>
+              <a href={featuredPost ? `/blog/${featuredPost.slug}/` : '#software-testing'} className={`mt-7 inline-flex w-fit items-center gap-2 rounded-sm text-sm font-semibold text-primary transition-colors hover:text-secondary motion-reduce:transition-none ${focusStyles}`}>
+                {featuredPost ? 'Read the featured article' : 'Read the testing guide'} <ArrowUpRight aria-hidden="true" size={18} />
               </a>
             </div>
           </div>
@@ -341,37 +346,10 @@ export default function BlogPage() {
               <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.2em] text-primary">Ideas worth putting to work</p>
               <h2 id="articles-heading" className="text-3xl font-bold tracking-tight sm:text-4xl">Your next <span className="brand-gradient-text">learning moment.</span></h2>
             </div>
-            <p className="max-w-xs text-sm leading-6 text-foreground/55">Six practical starting points.<br />Choose a topic. Try something new.</p>
+            <p className="max-w-xs text-sm leading-6 text-foreground/55">{posts.length} published articles.<br />Fresh ideas from our team.</p>
           </div>
 
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {guides.map((guide, index) => (
-              <article key={guide.id} className="h-full">
-                <a href={`#${guide.id}`} aria-label={`Read the guide: ${guide.title}`} className={`group flex h-full flex-col overflow-hidden rounded-2xl border border-primary/10 bg-card transition-[border-color,box-shadow,transform] duration-300 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/5 motion-safe:hover:-translate-y-1 motion-reduce:transition-none ${focusStyles}`}>
-                  <div className="relative flex min-h-44 flex-col justify-between overflow-hidden border-b border-primary/10 bg-gradient-to-br from-primary/10 via-background to-secondary/5 p-6">
-                    <div aria-hidden="true" className="pointer-events-none absolute -bottom-10 -right-8 h-40 w-40 rounded-full border border-primary/10 transition-transform duration-500 motion-safe:group-hover:scale-125 motion-reduce:transition-none" />
-                    <div className="relative flex items-center justify-between">
-                      <guide.icon aria-hidden="true" size={27} strokeWidth={1.5} className="text-primary" />
-                      <span aria-hidden="true" className="font-mono text-xs text-primary/45">0{index + 1}</span>
-                    </div>
-                    <div className="relative mt-6">
-                      <p className="text-base font-medium tracking-tight text-foreground/85">{guide.visual}</p>
-                      <p className="mt-2 font-mono text-[10px] tracking-wide text-primary/80">{guide.code}</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-1 flex-col p-6">
-                    <span className="mb-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">{guide.category}</span>
-                    <h3 className="text-xl font-semibold leading-snug tracking-tight transition-colors group-hover:text-primary motion-reduce:transition-none">{guide.title}</h3>
-                    <p className="mb-6 mt-3 text-sm leading-7 text-foreground/60">{guide.summary}</p>
-                    <span className="mt-auto flex items-center justify-between border-t border-white/5 pt-4 text-xs font-semibold text-foreground/75">
-                      Read the guide
-                      <ArrowUpRight aria-hidden="true" size={17} className="text-primary transition-transform motion-safe:group-hover:translate-x-0.5 motion-safe:group-hover:-translate-y-0.5 motion-reduce:transition-none" />
-                    </span>
-                  </div>
-                </a>
-              </article>
-            ))}
-          </div>
+          <WordPressArticleCards posts={posts} />
         </section>
 
         <section aria-labelledby="practice-heading" className="mt-20 border-t border-primary/10 pt-16 sm:mt-24">

@@ -1,0 +1,92 @@
+# XpertsEdge Phase 4 — WordPress CMS conditional build DRY RUN.
+# No SSH, no AWS deployment, no GitHub push, no WordPress changes.
+# Uses snapshot of LAST SUCCESSFUL BUILD, not last observed content.
+name: WordPress CMS Conditional Build (Dry Run)
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Four checks per hour, at off-peak minute offsets (UTC).
+    - cron: '7,22,37,52 * * * *'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: wordpress-cms-conditional-build-dry-run
+  cancel-in-progress: false
+
+jobs:
+  monitor-and-build:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout source (no stored credentials)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Unit tests for WordPress monitoring
+        run: |
+          node --test tests/wordpress-monitor.test.mjs
+          node --test tests/wordpress-monitor-state.test.mjs
+
+      - name: Restore snapshot of last successful dry-run build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p monitor-state/previous
+          ARTIFACT_ID="$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=xpertsedge-wp-successful-dry-run-build-snapshot&per_page=100" \
+            --jq '([.artifacts[] | select(.expired == false)] | max_by(.created_at) | .id) // ""')"
+          if [ -n "$ARTIFACT_ID" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > previous.zip
+            unzip -j previous.zip snapshot.json -d monitor-state/previous
+          else
+            echo 'No successful build baseline: first run will build.'
+          fi
+
+      - name: Compare published content
+        id: compare
+        run: |
+          node scripts/wordpress-monitor-state.mjs \
+            --previous monitor-state/previous/snapshot.json \
+            --output monitor-state/snapshot.json
+
+      - name: Install dependencies only if build is needed
+        if: steps.compare.outputs.build_required == 'true'
+        run: npx --yes pnpm@10 install --frozen-lockfile
+
+      - name: TypeScript check only if build is needed
+        if: steps.compare.outputs.build_required == 'true'
+        run: npx --yes pnpm@10 exec tsc --noEmit
+
+      - name: Generate static export only if build is needed
+        if: steps.compare.outputs.build_required == 'true'
+        run: |
+          npx --yes pnpm@10 run build
+          test -s out/index.html
+          test -s out/blog.html
+
+      # IMPORTANT: Baseline advances ONLY after a successful build.
+      # On build failure it remains unchanged, so the next run retries.
+      - name: Remember last successful dry-run build
+        if: steps.compare.outputs.build_required == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: xpertsedge-wp-successful-dry-run-build-snapshot
+          path: monitor-state/snapshot.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: No change found
+        if: steps.compare.outputs.build_required == 'false'
+        run: echo 'No WordPress changes; build skipped.'
