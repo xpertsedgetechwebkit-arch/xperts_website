@@ -218,7 +218,7 @@ jobs:
           if ! curl --fail --silent --show-error \
             --connect-timeout 3 --max-time 15 \
             -H 'Host: xpertsedgetech.com' \
-            http://127.0.0.1/api/health \
+            --resolve xpertsedgetech.com:443:127.0.0.1 https://xpertsedgetech.com/api/health \
             -o /dev/null; then
             restore_previous
             exit 1
@@ -275,7 +275,7 @@ jobs:
           if ! ACTUAL_SHA="$(curl --fail --silent --show-error \
             --connect-timeout 10 --max-time 30 \
             -H 'Host: xpertsedgetech.com' \
-            http://127.0.0.1/deployment.txt)"; then
+            --resolve xpertsedgetech.com:443:127.0.0.1 https://xpertsedgetech.com/deployment.txt)"; then
             rollback
             exit 1
           fi
@@ -298,14 +298,14 @@ jobs:
           curl --fail --silent --show-error \
             --retry 2 \
             --connect-timeout 20 --max-time 30 \
-            "http://${DEPLOY_HOST}/deployment.txt" \
+            --resolve "www.xpertsedgetech.com:443:${DEPLOY_HOST}" "https://www.xpertsedgetech.com/deployment.txt" \
             -o deployed.txt
 
           test "$(cat deployed.txt)" = "$GITHUB_SHA"
 
           curl --fail --silent --show-error \
             --connect-timeout 10 --max-time 20 \
-            "http://${DEPLOY_HOST}/api/health"
+            --resolve "www.xpertsedgetech.com:443:${DEPLOY_HOST}" "https://www.xpertsedgetech.com/api/health"
 
       - name: Remove temporary SSH access
         if: always() && steps.ssh_access.outputs.rule_id != ''
