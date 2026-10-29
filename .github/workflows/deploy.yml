@@ -46,7 +46,7 @@ jobs:
 
       - name: Build website
         env:
-          NEXT_PUBLIC_LEADS_DB_ENABLED: 'false'
+          NEXT_PUBLIC_LEADS_DB_ENABLED: 'true'
           NEXT_PUBLIC_LEADS_API_URL: '/api/leads'
         run: npx --yes pnpm@10 build
 
