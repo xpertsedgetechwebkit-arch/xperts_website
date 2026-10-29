@@ -1,10 +1,13 @@
-name: Deploy website and backend to EC2
+name: WordPress CMS Auto Deploy to EC2
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 concurrency:
@@ -12,7 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  monitor-and-deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
 
@@ -27,54 +31,109 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install website dependencies
-        run: npx --yes pnpm@10 install --frozen-lockfile
-
-      - name: Check TypeScript
-        run: npx --yes pnpm@10 exec tsc --noEmit
-
       - name: Test WordPress monitoring
         run: node --test tests/*.test.mjs
 
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Test backend
-        working-directory: backend
-        run: npm test
-
-      - name: Build website
+      - name: Restore last verified CMS deployment snapshot
         env:
-          NEXT_PUBLIC_LEADS_DB_ENABLED: 'true'
-          NEXT_PUBLIC_LEADS_API_URL: '/api/leads'
-        run: npx --yes pnpm@10 build
-
-      - name: Package website and backend
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
 
+          mkdir -p monitor-state/previous
+
+          ARTIFACT_ID="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=xpertsedge-wp-ec2-deployed-snapshot&per_page=100" \
+            --jq '([.artifacts[] | select(.expired == false)] | max_by(.created_at) | .id) // ""')"
+
+          if [ -n "$ARTIFACT_ID" ]; then
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" \
+              > previous.zip
+
+            unzip -j previous.zip snapshot.json \
+              -d monitor-state/previous
+          else
+            echo "No deployment baseline; first run will deploy."
+          fi
+
+      - name: Compare WordPress content
+        id: compare
+        run: |
+          node scripts/wordpress-monitor-state.mjs \
+            --previous monitor-state/previous/snapshot.json \
+            --output monitor-state/snapshot.json
+
+      - name: Build updated website
+        if: steps.compare.outputs.build_required == 'true'
+        env:
+          NEXT_PUBLIC_LEADS_DB_ENABLED: 'true'
+          NEXT_PUBLIC_LEADS_API_URL: '/api/leads'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npx --yes pnpm@10 install --frozen-lockfile
+          npx --yes pnpm@10 exec tsc --noEmit
+          npx --yes pnpm@10 build
+
           test -s out/index.html
+          test -s out/blog.html
+
+      - name: Check content stayed stable during build
+        if: steps.compare.outputs.build_required == 'true'
+        id: stable
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node scripts/wordpress-monitor-state.mjs \
+            --previous monitor-state/snapshot.json \
+            --output monitor-state/after-build.json
+
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+
+          const before = JSON.parse(
+            readFileSync('monitor-state/snapshot.json', 'utf8')
+          );
+          const after = JSON.parse(
+            readFileSync('monitor-state/after-build.json', 'utf8')
+          );
+
+          if (before.sha256 !== after.sha256) {
+            throw new Error(
+              'WordPress changed during the build. Next scheduled run will retry.'
+            );
+          }
+          JS
+
+      - name: Package website
+        if: steps.compare.outputs.build_required == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
           printf '%s\n' "$GITHUB_SHA" > out/deployment.txt
+
+          node -e \
+            "const fs=require('fs'); const s=JSON.parse(fs.readFileSync('monitor-state/snapshot.json','utf8')); fs.writeFileSync('out/cms-content.txt',s.sha256+'\n')"
+
           tar -czf website.tar.gz -C out .
 
-          test -s backend/src/server.js
-          test -s backend/package-lock.json
-
-          tar -czf backend.tar.gz -C backend \
-            package.json package-lock.json src
-
       - name: Authenticate to AWS
+        if: steps.compare.outputs.build_required == 'true'
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
           role-to-assume: arn:aws:iam::429552190319:role/XpertsEdgeGitHubEC2DeployRole
           aws-region: ap-south-1
-          role-session-name: GitHubEC2Deploy
+          role-session-name: GitHubWordPressDeploy
           allowed-account-ids: '429552190319'
           retry-max-attempts: 3
 
       - name: Configure SSH
+        if: steps.compare.outputs.build_required == 'true'
         env:
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
@@ -93,6 +152,7 @@ jobs:
           ssh-keygen -y -P '' -f ~/.ssh/id_ed25519 > /dev/null
 
       - name: Allow temporary SSH access
+        if: steps.compare.outputs.build_required == 'true'
         id: ssh_access
         shell: bash
         run: |
@@ -114,7 +174,7 @@ jobs:
           RULE_ID="$(aws ec2 authorize-security-group-ingress \
             --group-id sg-078e53f9aab04fd98 \
             --ip-permissions \
-            "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description=GitHub-deploy-${GITHUB_RUN_ID}}]" \
+            "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description=GitHub-CMS-${GITHUB_RUN_ID}}]" \
             --query 'SecurityGroupRules[0].SecurityGroupRuleId' \
             --output text)"
 
@@ -122,7 +182,8 @@ jobs:
           test "$RULE_ID" != "None"
           echo "rule_id=$RULE_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Upload deployment packages
+      - name: Upload and activate website
+        if: steps.compare.outputs.build_required == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.EC2_HOST }}
           DEPLOY_USER: ${{ secrets.EC2_USER }}
@@ -133,131 +194,42 @@ jobs:
           test -n "$DEPLOY_HOST"
           test -n "$DEPLOY_USER"
 
-          RELEASE="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          RELEASE="cms-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
+
+          CONTENT_HASH="$(node -p \
+            "JSON.parse(require('fs').readFileSync('monitor-state/snapshot.json','utf8')).sha256")"
 
           scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
             -o ConnectionAttempts=3 -o ConnectTimeout=20 \
             website.tar.gz \
             "${TARGET}:/var/www/xpertsedge/releases/${RELEASE}.tar.gz"
 
-          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            -o ConnectionAttempts=3 -o ConnectTimeout=20 \
-            backend.tar.gz \
-            "${TARGET}:/opt/xpertsedge-api/releases/${RELEASE}.tar.gz"
-
-      - name: Deploy backend and check database readiness
-        env:
-          DEPLOY_HOST: ${{ secrets.EC2_HOST }}
-          DEPLOY_USER: ${{ secrets.EC2_USER }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          RELEASE="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
-
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            -o ConnectionAttempts=3 -o ConnectTimeout=20 \
-            "$TARGET" "bash -s -- '$RELEASE'" <<'REMOTE'
-          set -euo pipefail
-
-          RELEASE="$1"
-          BASE=/opt/xpertsedge-api
-          umask 022
-
-          mkdir "$BASE/releases/$RELEASE"
-          tar -xzf "$BASE/releases/$RELEASE.tar.gz" \
-            -C "$BASE/releases/$RELEASE"
-
-          cd "$BASE/releases/$RELEASE"
-          test -s src/server.js
-          npm ci --omit=dev --no-audit --no-fund
-
-          PREVIOUS="$(readlink "$BASE/current" || true)"
-
-          restore_previous() {
-            if [ -n "$PREVIOUS" ]; then
-              ln -sfn "$PREVIOUS" "$BASE/current-next"
-              mv -Tf "$BASE/current-next" "$BASE/current"
-              sudo -n /usr/bin/systemctl restart xpertsedge-api.service
-            else
-              echo "No previous backend release; inspect service logs."
-            fi
-          }
-
-          ln -sfn "$BASE/releases/$RELEASE" "$BASE/current-next"
-          mv -Tf "$BASE/current-next" "$BASE/current"
-
-          if ! sudo -n /usr/bin/systemctl restart xpertsedge-api.service; then
-            restore_previous
-            exit 1
-          fi
-
-          HEALTHY=false
-
-          for ATTEMPT in $(seq 1 12); do
-            if curl --fail --silent --show-error \
-              --connect-timeout 3 --max-time 12 \
-              http://127.0.0.1:3001/api/health/ready \
-              -o /dev/null; then
-              HEALTHY=true
-              break
-            fi
-
-            echo "Waiting for backend readiness: attempt $ATTEMPT"
-            sleep 3
-          done
-
-          if [ "$HEALTHY" != "true" ]; then
-            echo "Backend database readiness failed."
-            restore_previous
-            exit 1
-          fi
-
-          if ! curl --fail --silent --show-error \
-            --connect-timeout 3 --max-time 15 \
-            -H 'Host: xpertsedgetech.com' \
-            --resolve xpertsedgetech.com:443:127.0.0.1 https://xpertsedgetech.com/api/health \
-            -o /dev/null; then
-            restore_previous
-            exit 1
-          fi
-
-          rm -f "$BASE/releases/$RELEASE.tar.gz"
-          echo "Backend and database connection checks passed."
-          REMOTE
-
-      - name: Activate website
-        env:
-          DEPLOY_HOST: ${{ secrets.EC2_HOST }}
-          DEPLOY_USER: ${{ secrets.EC2_USER }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          RELEASE="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
-
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
             -o ConnectionAttempts=3 -o ConnectTimeout=20 \
             "$TARGET" \
-            "bash -s -- '$RELEASE' '$GITHUB_SHA'" <<'REMOTE'
+            "bash -s -- '$RELEASE' '$GITHUB_SHA' '$CONTENT_HASH'" <<'REMOTE'
           set -euo pipefail
 
           RELEASE="$1"
           EXPECTED_SHA="$2"
+          EXPECTED_CONTENT="$3"
           BASE=/var/www/xpertsedge
           umask 022
 
           mkdir "$BASE/releases/$RELEASE"
+
           tar -xzf "$BASE/releases/$RELEASE.tar.gz" \
             -C "$BASE/releases/$RELEASE"
 
           test -s "$BASE/releases/$RELEASE/index.html"
+          test -s "$BASE/releases/$RELEASE/blog.html"
+
           test "$(cat "$BASE/releases/$RELEASE/deployment.txt")" = "$EXPECTED_SHA"
+          test "$(cat "$BASE/releases/$RELEASE/cms-content.txt")" = "$EXPECTED_CONTENT"
 
           chmod -R u=rwX,go=rX "$BASE/releases/$RELEASE"
+
           PREVIOUS="$(readlink "$BASE/current" || true)"
 
           rollback() {
@@ -269,43 +241,74 @@ jobs:
             fi
           }
 
+          verify_release() {
+            local ACTUAL_SHA
+            local ACTUAL_CONTENT
+
+            ACTUAL_SHA="$(curl --fail --silent --show-error \
+              --connect-timeout 10 --max-time 30 \
+              --resolve www.xpertsedgetech.com:443:127.0.0.1 \
+              https://www.xpertsedgetech.com/deployment.txt)" || return 1
+
+            ACTUAL_CONTENT="$(curl --fail --silent --show-error \
+              --connect-timeout 10 --max-time 30 \
+              --resolve www.xpertsedgetech.com:443:127.0.0.1 \
+              https://www.xpertsedgetech.com/cms-content.txt)" || return 1
+
+            test "$ACTUAL_SHA" = "$EXPECTED_SHA" || return 1
+            test "$ACTUAL_CONTENT" = "$EXPECTED_CONTENT" || return 1
+
+            curl --fail --silent --show-error \
+              --connect-timeout 10 --max-time 30 \
+              --resolve www.xpertsedgetech.com:443:127.0.0.1 \
+              https://www.xpertsedgetech.com/blog/ \
+              -o /dev/null || return 1
+          }
+
           ln -sfn "$BASE/releases/$RELEASE" "$BASE/current-next"
           mv -Tf "$BASE/current-next" "$BASE/current"
 
-          if ! ACTUAL_SHA="$(curl --fail --silent --show-error \
-            --connect-timeout 10 --max-time 30 \
-            -H 'Host: xpertsedgetech.com' \
-            --resolve xpertsedgetech.com:443:127.0.0.1 https://xpertsedgetech.com/deployment.txt)"; then
+          if ! verify_release; then
             rollback
-            exit 1
-          fi
-
-          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
-            rollback
+            echo "Website verification failed; previous release restored where available."
             exit 1
           fi
 
           rm -f "$BASE/releases/$RELEASE.tar.gz"
           REMOTE
 
-      - name: Verify EC2 public deployment
+      - name: Verify deployment from GitHub runner
+        if: steps.compare.outputs.build_required == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.EC2_HOST }}
         shell: bash
         run: |
           set -euo pipefail
 
+          EXPECTED_CONTENT="$(node -p \
+            "JSON.parse(require('fs').readFileSync('monitor-state/snapshot.json','utf8')).sha256")"
+
           curl --fail --silent --show-error \
-            --retry 2 \
             --connect-timeout 20 --max-time 30 \
-            --resolve "www.xpertsedgetech.com:443:${DEPLOY_HOST}" "https://www.xpertsedgetech.com/deployment.txt" \
+            --resolve "www.xpertsedgetech.com:443:${DEPLOY_HOST}" \
+            https://www.xpertsedgetech.com/deployment.txt \
             -o deployed.txt
 
           test "$(cat deployed.txt)" = "$GITHUB_SHA"
 
           curl --fail --silent --show-error \
-            --connect-timeout 10 --max-time 20 \
-            --resolve "www.xpertsedgetech.com:443:${DEPLOY_HOST}" "https://www.xpertsedgetech.com/api/health"
+            --connect-timeout 20 --max-time 30 \
+            --resolve "www.xpertsedgetech.com:443:${DEPLOY_HOST}" \
+            https://www.xpertsedgetech.com/cms-content.txt \
+            -o cms-deployed.txt
+
+          test "$(cat cms-deployed.txt)" = "$EXPECTED_CONTENT"
+
+          curl --fail --silent --show-error \
+            --connect-timeout 20 --max-time 30 \
+            --resolve "www.xpertsedgetech.com:443:${DEPLOY_HOST}" \
+            https://www.xpertsedgetech.com/blog/ \
+            -o /dev/null
 
       - name: Remove temporary SSH access
         if: always() && steps.ssh_access.outputs.rule_id != ''
@@ -318,6 +321,19 @@ jobs:
           aws ec2 revoke-security-group-ingress \
             --group-id sg-078e53f9aab04fd98 \
             --security-group-rule-ids "$RULE_ID"
+
+      - name: Remember verified CMS deployment
+        if: success() && steps.compare.outputs.build_required == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: xpertsedge-wp-ec2-deployed-snapshot
+          path: monitor-state/snapshot.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: No content changes
+        if: steps.compare.outputs.build_required == 'false'
+        run: echo "WordPress content unchanged; deployment skipped."
 
       - name: Remove runner SSH key
         if: always()
