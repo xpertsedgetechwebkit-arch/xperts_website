@@ -3,7 +3,7 @@ name: WordPress CMS Auto Deploy to EC2
 on:
   workflow_dispatch:
   schedule:
-    - cron: '11,26,41,56 * * * *'
+    - cron: '2-59/5 * * * *'
 
 permissions:
   contents: read
