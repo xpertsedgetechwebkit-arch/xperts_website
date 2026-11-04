@@ -1,6 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { CheckCircle, Send, User, Mail, Phone, Building2, BookOpen } from 'lucide-react'
@@ -36,6 +38,7 @@ const EMAIL_PATTERN = String.raw`[A-Za-z0-9_%+\-]+(?:\.[A-Za-z0-9_%+\-]+)*@[A-Za
 const EMAIL_REGEX = new RegExp(`^(?:${EMAIL_PATTERN})$`, 'i')
 
 export default function DemoPage() {
+  const router = useRouter()
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -46,6 +49,7 @@ export default function DemoPage() {
     message: '',
   })
   const [submitted, setSubmitted] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null)
   const leadIdRef = useRef<string | null>(null)
@@ -76,7 +80,7 @@ export default function DemoPage() {
       return
     }
     const phoneDigits = form.phone.replace(/\D/g, '')
-    if (indiaSelected ? !/^[0-9]{10}$/.test(phoneDigits) : phoneDigits.length < 4 || phoneDigits.length > maxPhoneDigits) {
+    if (indiaSelected ? !/^[6-9][0-9]{9}$/.test(phoneDigits) : phoneDigits.length < 4 || phoneDigits.length > maxPhoneDigits) {
       setError('Enter a valid mobile number for the selected country.')
       return
     }
@@ -98,8 +102,22 @@ export default function DemoPage() {
         message,
         subject: `Free demo registration${course ? ` — ${course}` : ''}`,
       }, 'free_demo', leadIdRef.current)
-      setDeliveryNotice(delivery.notice)
-      setSubmitted(true)
+      // Keep the legacy confirmation only if browser storage blocks navigation.
+      // A normal redirect should never flash the old success screen.
+      try {
+        sessionStorage.setItem('xpertsedge_thank_you_v1', JSON.stringify({
+          source: 'demo',
+          notice: delivery.notice,
+          createdAt: Date.now(),
+        }))
+        sessionStorage.setItem('reg_popup_seen', '1')
+      } catch {
+        setDeliveryNotice(delivery.notice)
+        setSubmitted(true)
+        return
+      }
+      setRedirecting(true)
+      router.replace('/thank-you')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
     } finally {
@@ -109,6 +127,13 @@ export default function DemoPage() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
+      {redirecting && createPortal(
+        <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center gap-4 bg-[#080d0a] px-6 text-center text-white" role="status" aria-live="polite">
+          <span className="h-9 w-9 rounded-full border-2 border-emerald-300/25 border-t-[#a3e635] motion-safe:animate-spin" aria-hidden="true" />
+          <p className="text-sm font-medium text-[#cce6d2]">Opening your confirmation...</p>
+        </div>,
+        document.body
+      )}
       <div className="pt-28 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto">
           {/* Header */}
@@ -239,10 +264,10 @@ export default function DemoPage() {
                         id="phone" name="phone" type="tel" required
                         inputMode="numeric"
                         autoComplete="tel-national"
-                        pattern={indiaSelected ? '[0-9]{10}' : `[0-9]{4,${maxPhoneDigits}}`}
+                        pattern={indiaSelected ? '[6-9][0-9]{9}' : `[0-9]{4,${maxPhoneDigits}}`}
                         minLength={indiaSelected ? 10 : 4}
                         maxLength={maxPhoneDigits}
-                        title={indiaSelected ? 'Enter a 10-digit Indian mobile number' : `Enter 4 to ${maxPhoneDigits} digits for ${country.name} (without the country code)`}
+                        title={indiaSelected ? 'Enter a 10-digit Indian mobile number starting with 6, 7, 8, or 9' : `Enter 4 to ${maxPhoneDigits} digits for ${country.name} (without the country code)`}
                         value={form.phone} onChange={handleChange}
                         placeholder={indiaSelected ? '10-digit mobile number' : 'Mobile number'}
                         className="min-w-0 flex-1 bg-background border border-border rounded-r-xl px-3 sm:px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"

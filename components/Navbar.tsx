@@ -102,7 +102,7 @@ export default function Navbar() {
           </button>
 
           {/* Desktop Nav */}
-          <nav className="hidden lg:flex items-center gap-6" aria-label="Main navigation">
+          <nav className="hidden xl:flex items-center gap-3 2xl:gap-5" aria-label="Main navigation">
             {/* Home */}
             <button
               onClick={() => handleNav('#home')}
@@ -112,14 +112,14 @@ export default function Navbar() {
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-150 rounded-full" />
             </button>
 
-            {/* About */}
-            <button
-              onClick={() => handleNav('#about')}
+            {/* About — dedicated page */}
+            <Link
+              href="/about"
               className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors duration-200 relative group"
             >
               About Us
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-150 rounded-full" />
-            </button>
+            </Link>
 
             {/* Services dropdown — exactly two options */}
             <div
@@ -188,14 +188,14 @@ export default function Navbar() {
               </AnimatePresence>
             </div>
 
-            {/* Why Us */}
-            <button
-              onClick={() => handleNav('#why-us')}
+            {/* Why Us — dedicated page */}
+            <Link
+              href="/why-us"
               className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors duration-200 relative group"
             >
               Why Us
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-150 rounded-full" />
-            </button>
+            </Link>
 
             {/* Careers */}
             <Link
@@ -224,6 +224,7 @@ export default function Navbar() {
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-150 rounded-full" />
             </Link>
 
+
             {/* Contact */}
             <Link
               href="/contact"
@@ -235,7 +236,7 @@ export default function Navbar() {
           </nav>
 
           {/* CTA Button */}
-          <div className="hidden lg:flex items-center gap-2">
+          <div className="hidden xl:flex items-center gap-2 shrink-0">
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
               <Link
                 href="/demo"
@@ -248,7 +249,7 @@ export default function Navbar() {
 
           {/* Mobile menu toggle */}
           <button
-            className="lg:hidden text-foreground p-2"
+            className="xl:hidden text-foreground p-2"
             onClick={() => setMenuOpen((v) => !v)}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
           >
@@ -265,12 +266,11 @@ export default function Navbar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-40 bg-background/97 backdrop-blur-md flex flex-col pt-20 px-6 overflow-y-auto lg:hidden"
+            className="fixed inset-0 z-40 bg-background/97 backdrop-blur-md flex flex-col pt-20 px-6 overflow-y-auto xl:hidden"
           >
             <nav className="flex flex-col gap-4 mt-6" aria-label="Mobile navigation">
               {[
                 { label: 'Home', action: () => handleNav('#home') },
-                { label: 'About Us', action: () => handleNav('#about') },
               ].map((item, i) => (
                 <motion.button
                   key={item.label}
@@ -283,6 +283,22 @@ export default function Navbar() {
                   {item.label}
                 </motion.button>
               ))}
+
+              {/* About — dedicated page, same mobile styling */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.06 }}
+                className="border-b border-border/40"
+              >
+                <Link
+                  href="/about"
+                  onClick={() => setMenuOpen(false)}
+                  className="block text-xl font-semibold text-foreground hover:text-primary transition-colors text-left py-2"
+                >
+                  About Us
+                </Link>
+              </motion.div>
 
               {/* Services — two options */}
               <motion.div
@@ -314,15 +330,21 @@ export default function Navbar() {
                 </Link>
               </motion.div>
 
-              <motion.button
+              {/* Why Us — dedicated page */}
+              <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.24 }}
-                onClick={() => handleNav('#why-us')}
-                className="text-xl font-semibold text-foreground hover:text-primary transition-colors text-left py-2 border-b border-border/40"
+                className="border-b border-border/40"
               >
-                Why Us
-              </motion.button>
+                <Link
+                  href="/why-us"
+                  onClick={() => setMenuOpen(false)}
+                  className="block text-xl font-semibold text-foreground hover:text-primary transition-colors text-left py-2"
+                >
+                  Why Us
+                </Link>
+              </motion.div>
 
               {/* Extra pages */}
               {[

@@ -6,8 +6,11 @@ export const filterName = (v: string) => v.replace(/[^a-zA-Z\s.]/g, '')
 /** Default country dialling code shown as a prefix in phone inputs. */
 export const DEFAULT_COUNTRY_CODE = '+91'
 
-/** Phone: exactly 10 digits — strip everything non-numeric and cap at 10. */
-export const filterPhone = (v: string) => v.replace(/\D/g, '').slice(0, 10)
+/** Indian mobile: digits only, up to 10; do not accept a leading digit outside 6–9. */
+export const filterPhone = (v: string) => {
+  const digits = v.replace(/\D/g, '')
+  return digits && !/^[6-9]/.test(digits) ? '' : digits.slice(0, 10)
+}
 
 /** Prepend the country code before submitting so the stored value is internationalised. */
 export const formatPhoneWithCode = (v: string, code = DEFAULT_COUNTRY_CODE) =>
@@ -28,8 +31,8 @@ export const isResumeLinkValid = (v: string) =>
 // Reusable HTML validation attributes for a 10-digit phone number.
 export const phoneAttrs = {
   inputMode: 'numeric' as const,
-  pattern: '[0-9]{10}',
-  title: 'Enter a 10-digit mobile number (country code is added automatically)',
+  pattern: '[6-9][0-9]{9}',
+  title: 'Enter a 10-digit Indian mobile number starting with 6, 7, 8, or 9',
   maxLength: 10,
   minLength: 10,
 }

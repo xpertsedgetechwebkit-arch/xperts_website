@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Send, CheckCircle, GraduationCap } from 'lucide-react'
 import { submitContactOrDemoLead } from '@/lib/leadSubmission'
@@ -25,9 +26,12 @@ const courses = [
 ]
 
 export default function RegistrationPopup() {
+  const router = useRouter()
+  const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null)
   // Keep the same UUID if the user retries a failed submission.
@@ -43,14 +47,28 @@ export default function RegistrationPopup() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (sessionStorage.getItem('reg_popup_seen')) return
-    const t = setTimeout(() => setOpen(true), 11500)
+    if (window.location.pathname.startsWith('/thank-you')) return
+    const t = setTimeout(() => {
+      if (window.location.pathname.startsWith('/thank-you')) return
+      if (sessionStorage.getItem('reg_popup_seen')) return
+      setOpen(true)
+    }, 11500)
     return () => clearTimeout(t)
   }, [])
+
+  // When the new route mounts, close the global popup without an exit flash.
+  useEffect(() => {
+    if (pathname === '/thank-you') {
+      setOpen(false)
+      setRedirecting(false)
+    }
+  }, [pathname])
 
   // Allow any element to open the form on demand (e.g. curriculum "Download PDF").
   useEffect(() => {
     const openNow = () => {
       setSubmitted(false)
+      setRedirecting(false)
       setError(null)
       setDeliveryNotice(null)
       leadIdRef.current = null
@@ -61,10 +79,27 @@ export default function RegistrationPopup() {
   }, [])
 
   const close = () => {
+    if (redirecting) return
     if (submitted) leadIdRef.current = null
     setOpen(false)
     if (typeof window !== 'undefined') sessionStorage.setItem('reg_popup_seen', '1')
   }
+
+  // Keep the page and fixed navbar behind the modal while it is open.
+  // Restore the existing styles on close or unmount.
+  useEffect(() => {
+    if (!open) return
+
+    const previousBodyOverflow = document.body.style.overflow
+    const previousHtmlOverflow = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow
+      document.documentElement.style.overflow = previousHtmlOverflow
+    }
+  }, [open])
 
   // Close on Escape
   useEffect(() => {
@@ -72,7 +107,7 @@ export default function RegistrationPopup() {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [open, redirecting])
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -104,8 +139,22 @@ export default function RegistrationPopup() {
         message: `Free demo registration${course ? ` for ${course}` : ''}.`,
         subject: `Demo registration${course ? ` — ${course}` : ''}`,
       }, 'registration', leadIdRef.current)
-      setDeliveryNotice(delivery.notice)
-      setSubmitted(true)
+      // Redirect only after delivery. The old inline success UI is reserved
+      // for storage-restricted browsers, preventing a confirmation flash.
+      try {
+        sessionStorage.setItem('xpertsedge_thank_you_v1', JSON.stringify({
+          source: 'registration',
+          notice: delivery.notice,
+          createdAt: Date.now(),
+        }))
+        sessionStorage.setItem('reg_popup_seen', '1')
+      } catch {
+        setDeliveryNotice(delivery.notice)
+        setSubmitted(true)
+        return
+      }
+      setRedirecting(true)
+      router.replace('/thank-you')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
     } finally {
@@ -115,17 +164,28 @@ export default function RegistrationPopup() {
 
   return (
     <AnimatePresence>
-      {open && (
+      {open && pathname !== '/thank-you' && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={close}
           role="dialog"
           aria-modal="true"
           aria-label="Register for a free demo"
         >
+          {redirecting && (
+            <div
+              className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-[#080d0a] px-6 text-center text-white"
+              role="status"
+              aria-live="polite"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <span className="h-9 w-9 rounded-full border-2 border-emerald-300/25 border-t-[#a3e635] motion-safe:animate-spin" aria-hidden="true" />
+              <p className="text-sm font-medium text-[#cce6d2]">Opening your confirmation...</p>
+            </div>
+          )}
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -207,10 +267,10 @@ export default function RegistrationPopup() {
                       name="phone" type="tel" required
                       inputMode="numeric"
                       autoComplete="tel-national"
-                      pattern={indiaSelected ? '[0-9]{10}' : `[0-9]{4,${maxPhoneDigits}}`}
+                      pattern={indiaSelected ? '[6-9][0-9]{9}' : `[0-9]{4,${maxPhoneDigits}}`}
                       minLength={indiaSelected ? 10 : 4}
                       maxLength={maxPhoneDigits}
-                      title={indiaSelected ? 'Enter a 10-digit Indian mobile number' : `Enter 4 to ${maxPhoneDigits} digits for ${country.name} (without country code)`}
+                      title={indiaSelected ? 'Enter a 10-digit Indian mobile number starting with 6, 7, 8, or 9' : `Enter 4 to ${maxPhoneDigits} digits for ${country.name} (without country code)`}
                       value={form.phone} onChange={handleChange}
                       placeholder={indiaSelected ? '10-digit mobile number' : 'Mobile number'}
                       className="min-w-0 flex-1 bg-background border border-border rounded-r-xl px-3 sm:px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"

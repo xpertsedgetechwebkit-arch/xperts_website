@@ -1,6 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import { motion, useInView } from 'framer-motion'
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle } from 'lucide-react'
 import { submitContactOrDemoLead } from '@/lib/leadSubmission'
@@ -39,11 +41,13 @@ const contactInfo = [
 ]
 
 export default function Contact() {
+  const router = useRouter()
   const ref = useRef(null)
   const inView = useInView(ref, { once: true, margin: '-80px' })
 
   const [formState, setFormState] = useState({ name: '', email: '', phone: '', message: '' })
   const [submitted, setSubmitted] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null)
   const leadIdRef = useRef<string | null>(null)
@@ -69,8 +73,22 @@ export default function Contact() {
         phone: formatPhoneWithCode(formState.phone),
         message: formState.message,
       }, 'contact', leadIdRef.current)
-      setDeliveryNotice(delivery.notice)
-      setSubmitted(true)
+      // Only show the inline success UI if browser storage blocks redirect.
+      // Never render the old confirmation during a normal navigation.
+      try {
+        sessionStorage.setItem('xpertsedge_thank_you_v1', JSON.stringify({
+          source: 'contact',
+          notice: delivery.notice,
+          createdAt: Date.now(),
+        }))
+        sessionStorage.setItem('reg_popup_seen', '1')
+      } catch {
+        setDeliveryNotice(delivery.notice)
+        setSubmitted(true)
+        return
+      }
+      setRedirecting(true)
+      router.replace('/thank-you')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
     } finally {
@@ -80,6 +98,13 @@ export default function Contact() {
 
   return (
     <section id="contact" ref={ref} className="py-24 lg:py-32 bg-background relative overflow-hidden">
+      {redirecting && createPortal(
+        <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center gap-4 bg-[#080d0a] px-6 text-center text-white" role="status" aria-live="polite">
+          <span className="h-9 w-9 rounded-full border-2 border-emerald-300/25 border-t-[#a3e635] motion-safe:animate-spin" aria-hidden="true" />
+          <p className="text-sm font-medium text-[#cce6d2]">Opening your confirmation...</p>
+        </div>,
+        document.body
+      )}
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-3/4 opacity-5 pointer-events-none rounded-full"
         style={{ background: 'radial-gradient(ellipse, #22c55e 0%, transparent 70%)' }}

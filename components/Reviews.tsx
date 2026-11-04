@@ -3,6 +3,7 @@
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
 import { Star, Quote } from 'lucide-react'
+import { StudentReviewsHome } from '@/components/StudentReviewsShowcase'
 
 type Review = {
   name: string
@@ -165,7 +166,7 @@ function MarqueeColumn({ items, speed, className = '' }: { items: Review[]; spee
   )
 }
 
-export default function Reviews() {
+function OriginalReviews() {
   const ref = useRef(null)
   const inView = useInView(ref, { once: true, margin: '-80px' })
 
@@ -250,5 +251,16 @@ export default function Reviews() {
         </motion.div>
       </div>
     </section>
+  )
+}
+
+// Keep the original auto-scrolling testimonials and summary exactly as they were.
+// The additional video-review cards and See More link belong BELOW that section.
+export default function Reviews() {
+  return (
+    <>
+      <OriginalReviews />
+      <StudentReviewsHome />
+    </>
   )
 }

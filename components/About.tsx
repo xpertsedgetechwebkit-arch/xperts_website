@@ -1,9 +1,9 @@
 'use client'
 
 import Image from 'next/image'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useInView } from 'framer-motion'
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Target, Eye, Zap } from 'lucide-react'
 
 const fadeUp = {
@@ -29,9 +29,28 @@ const pillars = [
   },
 ]
 
+// To replace a sample image later, add your image to /public and update its src here.
+const aboutSlides = [
+  { src: '/about-img.png', alt: 'XpertsEdge Technologies training environment' },
+  { src: '/about-slide-2.svg', alt: 'Sample illustration of a practical coding classroom' },
+  { src: '/about-slide-3.svg', alt: 'Sample illustration of instructor-led technology training' },
+  { src: '/about-slide-4.svg', alt: 'Sample illustration of collaborative project learning' },
+]
+
 export default function About() {
   const ref = useRef(null)
   const inView = useInView(ref, { once: true, margin: '-100px' })
+  const [activeSlide, setActiveSlide] = useState(0)
+
+  // Autoplay must not depend on scroll visibility or mouse position.
+  // This also keeps images rotating when the cursor is resting over the image.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % aboutSlides.length)
+    }, 4000)
+
+    return () => window.clearInterval(timer)
+  }, [])
 
   return (
     <section id="about" ref={ref} className="py-24 lg:py-32 bg-background relative overflow-hidden">
@@ -52,7 +71,7 @@ export default function About() {
           className="flex items-center gap-3 mb-4"
         >
           <span className="h-px w-8 bg-primary" />
-          <span className="text-primary text-xs font-semibold tracking-widest uppercase">About Us</span>
+          <span className="text-primary text-xs font-semibold tracking-widest uppercase">Inside XpertsEdge</span>
         </motion.div>
 
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
@@ -123,15 +142,36 @@ export default function About() {
             className="relative"
           >
             <div className="relative rounded-2xl overflow-hidden brand-border">
+              {/* Preserve the original image dimensions exactly, without showing it under active slides. */}
               <Image
-                src="/about-img.png"
-                alt="XpertsEdge Technologies training environment"
+                src={aboutSlides[0].src}
+                alt=""
                 width={600}
                 height={480}
-                className="w-full h-auto object-cover"
+                className="w-full h-auto object-cover invisible"
+                aria-hidden="true"
               />
-              {/* Overlay badge */}
-              <div className="absolute bottom-4 left-4 right-4">
+              {/* Cross-fade the actual active image; only one slide source is displayed at a time. */}
+              <AnimatePresence initial={false}>
+                <motion.div
+                  key={activeSlide}
+                  className="absolute inset-0"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.7, ease: 'easeInOut' }}
+                >
+                  <Image
+                    src={aboutSlides[activeSlide].src}
+                    alt={aboutSlides[activeSlide].alt}
+                    fill
+                    sizes="(max-width: 1023px) 100vw, 50vw"
+                    className="object-cover"
+                  />
+                </motion.div>
+              </AnimatePresence>
+              {/* Overlay badge (unchanged position and styling) */}
+              <div className="absolute bottom-4 left-4 right-4 z-10">
                 <div className="bg-background/80 backdrop-blur-sm rounded-xl p-4 brand-border">
                   <p className="text-sm font-medium text-foreground italic leading-relaxed">
                     &ldquo;We are committed to maintaining excellence, integrity, and continuous

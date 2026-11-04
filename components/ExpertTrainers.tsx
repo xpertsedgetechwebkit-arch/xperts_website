@@ -1,196 +1,367 @@
-'use client'
+"use client";
 
-import Image from 'next/image'
-import Link from 'next/link'
-import { motion, MotionConfig } from 'framer-motion'
-import { ArrowUpRight, MoveUpRight, Sparkles } from 'lucide-react'
+import Image from "next/image";
+import Link from "next/link";
+import { motion, MotionConfig, useReducedMotion } from "framer-motion";
+import { ArrowUpRight, UserRound } from "lucide-react";
 
-/**
- * XpertsEdge expert trainers.
- * Photos come from public/trainers/ and are displayed without image retouching.
- * Per-trainer positioning keeps faces visible across responsive card sizes.
- */
-const trainers = [
+type Trainer = {
+  id: string;
+  name: string;
+  role: string;
+  specialty: string;
+  bio: string;
+  skills: string[];
+  image: string | null;
+  imagePosition: string;
+  // Positive pixels move the picture DOWN. Negative pixels move it UP.
+  imageMoveY?: number;
+  // Smaller width = less zoom; larger width = larger portrait.
+  portraitWidth?: number;
+  isComingSoon?: boolean;
+};
+
+// Edit trainer details here.
+// For future trainers, update the name, role, bio, skills,
+// image path and set isComingSoon to false.
+
+const trainers: Trainer[] = [
   {
-    id: 'hari',
-    name: 'Hari',
-    role: 'Software Testing Trainer',
-    specialty: 'QUALITY ENGINEERING',
-    bio: 'Makes test design, defect reporting, and QA fundamentals practical with hands-on exercises.',
-    skills: ['Manual Testing', 'Jira', 'SQL'],
-    image: '/trainers/hari.png',
-    imagePosition: '50% 16%',
+    id: "hari",
+    name: "Haridoss",
+    role: "DevOps Trainer",
+    specialty: "CLOUD & DEVOPS ENGINEERING",
+    bio: "Makes cloud infrastructure, CI/CD pipelines, automation, and deployment practices practical through hands-on exercises.",
+    skills: ["AWS", "Docker", "Kubernetes", "Jenkins", "Git", "Linux"],
+    image: "/trainers/hari.png",
+    imagePosition: "50% 6%",
+    imageMoveY: 0, // +20 moves the portrait down; -20 moves it up.
+    portraitWidth: 196, // Decrease to 160 for a less zoomed portrait.
   },
   {
-    id: 'arun',
-    name: 'Arun',
-    role: 'Full Stack Development Trainer',
-    specialty: 'FULL STACK ENGINEERING',
-    bio: 'Connects frontend, backend, and databases through clear explanations and project-based learning.',
-    skills: ['React', 'Node.js', 'MongoDB'],
-    image: '/trainers/arun.png',
-    imagePosition: '50% 0%',
+    id: "arun",
+    name: "Arun Kumar",
+    role: "Playwright Automation Trainer",
+    specialty: "TEST AUTOMATION ENGINEERING",
+    bio: "Specializes in Playwright automation, TypeScript scripting, API testing, and end-to-end testing through real-world projects and hands-on practice.",
+    skills: [
+      "Playwright",
+      "TypeScript",
+      "JavaScript",
+      "API Testing",
+      "Automation Frameworks",
+      "CI/CD",
+    ],
+    image: "/trainers/arun.jpeg",
+    imagePosition: "50% 10%",
+    imageMoveY: 0,
+    portraitWidth: 232,
   },
   {
-    id: 'syed-irfan',
-    name: 'Syed Irfan',
-    role: 'Python / Backend Trainer',
-    specialty: 'BACKEND DEVELOPMENT',
-    bio: 'Breaks down Python, APIs, and backend architecture into approachable real-world projects.',
-    skills: ['Python', 'Django', 'REST APIs'],
-    image: '/trainers/syed-irfan.png',
-    imagePosition: '50% 12%',
+    id: "syed-irfan",
+    name: "Syed Irfan",
+    role: "Full Stack Development Trainer",
+    specialty: "FULL STACK ENGINEERING",
+    bio: "Specializes in frontend, backend, and database development through practical, project-based learning.",
+    skills: ["Java", "Spring Boot", "React", "REST APIs", "MySQL"],
+    image: "/trainers/syed-irfan.jpeg",
+    imagePosition: "50% 6%",
+    imageMoveY: 0,
+    portraitWidth: 206,
   },
-] as const
 
-// Soft upward entrance; transform + opacity animate efficiently on scroll.
+  // Confirmed trainer profile 4
+  {
+    id: "udhaya",
+    name: "Udhaya",
+    role: "Full Stack Development Trainer",
+    specialty: "FULL STACK ENGINEERING",
+    bio: "Full Stack Developer with 10+ years of experience in delivering practical, project-based training.",
+    skills: ["React", "Node.js", "MongoDB", "JavaScript"],
+    image: "/trainers/udhaya.jpeg",
+    imagePosition: "50% 65%",
+    imageMoveY: 0,
+    portraitWidth: 208,
+  },
+  
+];
+
+// Brief display copy keeps the cards compact; the full bios remain above.
+const trainerIntros: Record<string, string> = {
+  hari: "Hands-on cloud infrastructure, CI/CD, automation, and deployment.",
+  arun: "Practical Playwright, TypeScript, API, and end-to-end testing.",
+  "syed-irfan":
+    "Frontend, backend, and databases through project-based learning.",
+};
+
+const cardClasses = [
+  "group relative flex h-full min-w-0 flex-col",
+  "overflow-hidden rounded-[20px]",
+  "border border-white/[0.09]",
+  "bg-[#101712]",
+  "shadow-[0_8px_24px_rgba(0,0,0,0.12)]",
+  "transition-[transform,border-color,box-shadow]",
+  "duration-300",
+  "hover:border-[#9ce8ad]/35",
+  "hover:shadow-[0_16px_36px_rgba(0,0,0,0.24)]",
+  "focus-within:border-[#9ce8ad]/50",
+  "motion-safe:hover:-translate-y-[3px]",
+  "motion-reduce:transition-none",
+].join(" ");
+
 const reveal = {
-  hidden: { opacity: 0, y: 38, scale: 0.97 },
-  visible: { opacity: 1, y: 0, scale: 1 },
-}
+  hidden: {
+    opacity: 0,
+    y: 14,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+  },
+};
 
 export default function ExpertTrainers() {
+  const prefersReducedMotion = useReducedMotion();
+
   return (
     <MotionConfig reducedMotion="user">
-    <section
-      id="expert-trainers"
-      aria-labelledby="expert-trainers-title"
-      className="relative isolate bg-[#0c110e] py-20 text-foreground sm:py-24 lg:py-28"
-    >
-      {/* Visual texture is contained in its own layer, not the section.
-          This lets the cards lift on hover without clipping their edges. */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+      <section
+        id="expert-trainers"
+        aria-labelledby="expert-trainers-title"
+        className="relative isolate overflow-hidden bg-[#0c110e] py-16 text-foreground sm:py-20 lg:py-24"
+      >
+        {/* Section background */}
         <div
-          className="absolute inset-0 opacity-[0.24]"
-          style={{
-            backgroundImage: 'radial-gradient(rgba(163,230,53,0.16) 0.7px, transparent 0.7px)',
-            backgroundSize: '24px 24px',
-          }}
-        />
-        <div className="absolute -right-40 -top-56 h-[480px] w-[480px] rounded-full bg-[#22c55e]/[0.065] blur-[110px]" />
-        <div className="absolute -bottom-52 -left-44 h-[460px] w-[460px] rounded-full bg-[#a3e635]/[0.045] blur-[110px]" />
-      </div>
-
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-11 flex flex-col justify-between gap-7 lg:mb-13 lg:flex-row lg:items-end"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10"
         >
-          <div className="max-w-[730px]">
-            <div className="mb-5 inline-flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#9ce8ad]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#a3e635] shadow-[0_0_12px_rgba(163,230,53,0.8)]" />
-              OUR MENTORS <span className="text-white/25">/</span> MEET THE PEOPLE
+          <div
+            className="absolute inset-0 opacity-[0.20]"
+            style={{
+              backgroundImage:
+                "radial-gradient(rgba(163,230,53,0.14) 0.7px, transparent 0.7px)",
+              backgroundSize: "26px 26px",
+            }}
+          />
+
+          <div className="absolute -right-40 -top-48 h-[460px] w-[460px] rounded-full bg-[#22c55e]/[0.055] blur-[110px]" />
+
+          <div className="absolute -bottom-48 -left-40 h-[440px] w-[440px] rounded-full bg-[#a3e635]/[0.04] blur-[110px]" />
+        </div>
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          {/* Existing section heading */}
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.55 }}
+            className="mb-10 flex flex-col justify-between gap-7 lg:mb-12 lg:flex-row lg:items-end"
+          >
+            <div className="max-w-[730px]">
+              <div className="mb-5 inline-flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#9ce8ad]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#a3e635] shadow-[0_0_12px_rgba(163,230,53,0.8)]" />
+                OUR MENTORS
+                <span className="text-white/25">/</span>
+                MEET THE PEOPLE
+              </div>
+
+              <h2
+                id="expert-trainers-title"
+                className="max-w-[720px] text-balance text-4xl font-bold leading-[1.09] tracking-[-0.045em] text-white sm:text-5xl lg:text-[3.7rem]"
+              >
+                Meet Our{" "}
+                <span className="brand-gradient-text">Expert Trainers</span>
+                <span className="text-[#a3e635]">.</span>
+              </h2>
             </div>
-            <h2
-              id="expert-trainers-title"
-              className="max-w-[720px] text-balance text-4xl font-bold leading-[1.09] tracking-[-0.045em] text-white sm:text-5xl lg:text-[3.7rem]"
-            >
-              Meet Our <span className="brand-gradient-text">Expert Trainers</span>
-              <span className="text-[#a3e635]">.</span>
-            </h2>
-          </div>
-          <div className="max-w-[360px] lg:pb-1">
-            <p className="text-sm leading-7 text-[#a5b7ab] sm:text-[15px]">
-              Real skills grow with the right guidance. Get to know the trainers behind our hands-on learning programs.
-            </p>
-            <Link
-              href="/demo"
-              className="group/link mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#a3e635] transition-colors hover:text-white focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a3e635]"
-            >
-              Register for a free demo
-              <ArrowUpRight size={16} className="transition-transform duration-300 group-hover/link:-translate-y-0.5 group-hover/link:translate-x-0.5" aria-hidden="true" />
-            </Link>
-          </div>
-        </motion.div>
 
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.12, margin: '0px 0px -60px 0px' }}
-          variants={{ visible: { transition: { staggerChildren: 0.16, delayChildren: 0.08 } } }}
-          className="mx-auto grid max-w-[1140px] grid-cols-1 items-stretch gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-7"
-        >
-          {trainers.map((trainer, index) => (
-            <motion.div
-              key={trainer.id}
-              variants={reveal}
-              transition={{ duration: 0.82, ease: [0.22, 1, 0.36, 1] }}
-              className="group relative min-w-0 w-full py-2 sm:last:col-span-2 sm:last:mx-auto sm:last:max-w-[480px] lg:last:col-span-1 lg:last:max-w-none"
-            >
-              <article className="relative flex h-full transform-gpu flex-col rounded-[1.6rem] border border-white/[0.095] bg-[#131a16] shadow-[0_18px_45px_-30px_rgba(0,0,0,0.9)] transition-[transform,border-color,box-shadow] duration-[550ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-2 group-hover:scale-[1.012] group-hover:border-[#86d9a1]/45 group-hover:shadow-[0_32px_65px_-33px_rgba(34,197,94,0.35)] group-focus-within:-translate-y-2 motion-reduce:transform-none motion-reduce:transition-none">
-                {/* Only the photo itself clips; the full card is free to lift. */}
-                <div className="relative mx-3 mt-3 h-[300px] overflow-hidden rounded-[1.1rem] sm:h-[285px] lg:h-[315px] xl:h-[330px]">
-                  <Image
-                    src={trainer.image}
-                    alt={`XpertsEdge trainer: ${trainer.name}`}
-                    fill
-                    sizes="(max-width: 639px) 92vw, (max-width: 1023px) 46vw, 30vw"
-                    style={{ objectPosition: trainer.imagePosition }}
-                    className={`object-cover transform-gpu transition-transform duration-[950ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transform-none motion-reduce:transition-none ${
-                      trainer.id === 'arun'
-                        ? 'scale-[1.22] group-hover:scale-[1.27]'
-                        : 'scale-100 group-hover:scale-[1.05]'
-                    }`}
-                  />
-                  <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#07150d]/55 via-transparent to-[#05150b]/25" />
-                  <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full border border-white/15 bg-[#0c1b14]/65 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-white/85 backdrop-blur-md">
-                    <Sparkles size={11} aria-hidden="true" className="text-[#a3e635]" />
-                    Mentor {String(index + 1).padStart(2, '0')}
-                  </div>
-                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
-                    <span className="max-w-full truncate rounded-full border border-white/15 bg-[#0c1b14]/75 px-2.5 py-1.5 text-[9px] font-semibold tracking-[0.1em] text-[#dcfce7] backdrop-blur-md">
-                      {trainer.specialty}
-                    </span>
-                    <span className="shrink-0 rounded-full border border-white/15 bg-[#0c1b14]/65 p-2 text-white/85 backdrop-blur-md" aria-hidden="true">
-                      <MoveUpRight size={13} />
-                    </span>
-                  </div>
-                </div>
+            <div className="max-w-[360px] lg:pb-1">
+              <p className="text-sm leading-7 text-[#a5b7ab] sm:text-[15px]">
+                Real skills grow with the right guidance. Get to know the
+                trainers behind our hands-on learning programs.
+              </p>
 
-                <div className="flex flex-1 flex-col px-5 pb-5 pt-5 sm:px-5">
-                  <h3 className="text-[23px] font-bold tracking-[-0.035em] text-white">{trainer.name}</h3>
-                  <p className="mt-1 text-[13px] font-medium text-[#94e7aa]">{trainer.role}</p>
-                  <p className="mt-3 min-h-[63px] text-[13px] leading-[1.65] text-[#9aaea0]">{trainer.bio}</p>
-                  <div className="mt-4 flex min-h-[58px] flex-wrap content-start gap-1.5" aria-label={`${trainer.name}'s topics`}>
-                    {trainer.skills.map((skill) => (
-                      <span key={skill} className="rounded-full border border-[#91dba3]/15 bg-[#91dba3]/[0.065] px-2.5 py-1 text-[11px] text-[#c8ded0] transition-colors duration-300 group-hover:border-[#91dba3]/30">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                  <Link
-                    href="/demo"
-                    aria-label={`Register for a free demo with a focus on ${trainer.role.toLowerCase()}`}
-                    className="mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-[13px] font-semibold text-white transition-colors duration-300 hover:text-[#a3e635] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a3e635]"
+              <Link
+                href="/demo"
+                className="group/link mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#a3e635] transition-colors hover:text-white focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a3e635]"
+              >
+                Register for a free demo
+                <ArrowUpRight
+                  size={16}
+                  className="transition-transform duration-300 motion-safe:group-hover/link:-translate-y-0.5 motion-safe:group-hover/link:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </Link>
+            </div>
+          </motion.div>
+
+          {/* Trainers grid */}
+          <div className="mx-auto grid max-w-[1020px] auto-rows-fr grid-cols-1 items-stretch gap-5 sm:grid-cols-4 lg:grid-cols-6 lg:gap-6">
+            {trainers.map((trainer, index) => {
+              const isComingSoon =
+                trainer.isComingSoon === true ||
+                trainer.specialty === "PROFILE COMING SOON";
+              const portraitWidth = trainer.portraitWidth ?? 184;
+
+              const positionClass =
+                index === 3
+                  ? "lg:col-start-2"
+                  : index === 4
+                    ? "sm:col-start-2 lg:col-start-4"
+                    : "";
+
+              return (
+                <motion.div
+                  key={trainer.id}
+                  initial={"hidden"}
+                  whileInView="visible"
+                  viewport={{ once: true, amount: 0.18 }}
+                  variants={reveal}
+                  transition={{
+                    duration: prefersReducedMotion ? 0 : 0.45,
+                    delay: prefersReducedMotion ? 0 : (index % 3) * 0.05,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className={`min-w-0 sm:col-span-2 lg:col-span-2 ${positionClass}`}
+                >
+                  <article
+                    className={cardClasses}
+                    aria-labelledby={`${trainer.id}-name`}
                   >
-                    Explore training
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#91dba3]/25 bg-[#20412a]/40 text-[#a3e635] transition-[background-color,transform] duration-300 group-hover:bg-[#22c55e]/20 group-hover:translate-x-0.5" aria-hidden="true">
-                      <ArrowUpRight size={17} />
-                    </span>
-                  </Link>
-                </div>
-              </article>
-            </motion.div>
-          ))}
-        </motion.div>
+                    {/* A quiet portrait stage, with no labels covering the photograph. */}
+                    <div className="relative mx-3 mt-3 h-[200px] shrink-0 overflow-hidden rounded-[14px] border border-white/[0.06] bg-gradient-to-b from-[#18251c] to-[#0b130e]">
+                      {trainer.image ? (
+                        <div
+                          className="relative mx-auto h-full max-w-full overflow-hidden"
+                          style={{ width: portraitWidth }}
+                        >
+                          <Image
+                            src={trainer.image}
+                            alt={`${trainer.name} — ${trainer.role}`}
+                            fill
+                            sizes={`${portraitWidth}px`}
+                            style={{
+                              objectPosition: trainer.imagePosition,
+                              // Move the *actual image*, rather than the card or stage.
+                              // No competing Framer Motion transform is applied here.
+                              transform: `translate3d(0, ${trainer.imageMoveY ?? 0}px, 0)`,
+                            }}
+                            className="object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+                          <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-[#91dba3]/20 bg-[#91dba3]/[0.06] text-[#a3cbb0]">
+                            <UserRound
+                              size={30}
+                              strokeWidth={1.4}
+                              aria-hidden="true"
+                            />
+                          </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.55, delay: 0.15 }}
-          className="mt-9 flex flex-wrap items-center justify-center gap-2 text-center text-xs text-[#859b8b] sm:text-sm"
-        >
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#a3e635]" />
-          Learn by doing, with guidance at every step.
-          <span className="hidden text-[#4e6555] sm:inline" aria-hidden="true">·</span>
-          <span className="text-[#b3d6bd]">XpertsEdge Technologies</span>
-        </motion.div>
-      </div>
-    </section>
+                          <span className="relative text-[10px] font-medium uppercase tracking-[0.17em] text-[#a9c5af]">
+                            Photo Coming Soon
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Trainer information */}
+                    <div className="flex flex-1 flex-col px-4 pb-4 pt-3 sm:px-5">
+                      <p className="mb-1 text-[9px] font-semibold uppercase leading-3 tracking-[0.12em] text-[#a3c4ae]">
+                        {isComingSoon
+                          ? trainer.isComingSoon
+                            ? "Sample profile · Coming soon"
+                            : "Profile coming soon"
+                          : trainer.specialty}
+                      </p>
+
+                      <div className="flex min-w-0 items-center justify-between gap-3">
+                        <h3
+                          id={`${trainer.id}-name`}
+                          className="text-[19px] font-semibold leading-6 tracking-tight text-white"
+                        >
+                          {trainer.name}
+                        </h3>
+
+                        {/* CTA for confirmed trainers */}
+                        {!isComingSoon && (
+                          <Link
+                            href="/demo"
+                            aria-label={`Explore training with ${trainer.name}`}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#94e7aa]/20 text-[#a3e635] transition-colors duration-200 hover:border-[#a3e635]/60 hover:bg-[#a3e635]/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a3e635] motion-reduce:transition-none"
+                          >
+                            <ArrowUpRight size={17} aria-hidden="true" />
+                          </Link>
+                        )}
+                      </div>
+
+                      <p className="mt-1 text-[12px] font-medium leading-5 text-[#94e7aa]">
+                        {trainer.role}
+                      </p>
+
+                      {/* Short description */}
+                      <p className="mt-2 text-[12px] leading-5 text-[#a5b7ab]">
+                        {trainerIntros[trainer.id] ?? trainer.bio}
+                      </p>
+
+                      {/* Compact skills */}
+                      {!isComingSoon ? (
+                        <div
+                          className="mt-auto flex flex-wrap gap-1.5 pt-3"
+                          aria-label={`${trainer.name}'s skills`}
+                        >
+                          {trainer.skills.map((skill) => (
+                            <span
+                              key={skill}
+                              className="rounded-md border border-[#91dba3]/15 bg-[#91dba3]/[0.04] px-2 py-0.5 text-[10px] leading-4 text-[#c8ded0]"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-auto pt-4">
+                          <span className="inline-flex items-center gap-2 text-[11px] text-[#a3c4ae]">
+                            <span
+                              aria-hidden="true"
+                              className="h-1.5 w-1.5 rounded-full bg-[#a3e635]/70"
+                            />
+                            Profile details pending
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Existing footer line */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{
+              duration: prefersReducedMotion ? 0 : 0.5,
+              delay: prefersReducedMotion ? 0 : 0.1,
+            }}
+            className="mt-10 flex flex-wrap items-center justify-center gap-2 text-center text-xs text-[#859b8b] sm:text-sm"
+          >
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#a3e635]" />
+            Learn by doing, with guidance at every step.
+            <span
+              className="hidden text-[#4e6555] sm:inline"
+              aria-hidden="true"
+            >
+              ·
+            </span>
+            <span className="text-[#b3d6bd]">XpertsEdge Technologies</span>
+          </motion.div>
+        </div>
+      </section>
     </MotionConfig>
-  )
+  );
 }

@@ -4,7 +4,6 @@ import Services from '@/components/Services'
 import ExpertTrainers from '@/components/ExpertTrainers'
 import AlumniWorksAt from '@/components/AlumniWorksAt'
 import ClientsTicker from '@/components/ClientsTicker'
-import WhyChooseUs from '@/components/WhyChooseUs'
 import Reviews from '@/components/Reviews'
 import Certifications from '@/components/Certifications'
 import HashScroll from '@/components/HashScroll'
@@ -19,7 +18,6 @@ export default function Page() {
       <ExpertTrainers />
       <AlumniWorksAt />
       {/* <ClientsTicker /> */}
-      <WhyChooseUs />
       <Reviews />
       <Certifications />
     </main>
