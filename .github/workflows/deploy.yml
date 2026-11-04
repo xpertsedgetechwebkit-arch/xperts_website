@@ -1,6 +1,8 @@
 name: WordPress CMS Auto Deploy to EC2
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: '2-59/5 * * * *'
@@ -66,7 +68,7 @@ jobs:
             --output monitor-state/snapshot.json
 
       - name: Build updated website
-        if: steps.compare.outputs.build_required == 'true'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.compare.outputs.build_required == 'true')
         env:
           NEXT_PUBLIC_LEADS_DB_ENABLED: 'true'
           NEXT_PUBLIC_LEADS_API_URL: '/api/leads'
@@ -82,7 +84,7 @@ jobs:
           test -s out/blog.html
 
       - name: Check content stayed stable during build
-        if: steps.compare.outputs.build_required == 'true'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.compare.outputs.build_required == 'true')
         id: stable
         shell: bash
         run: |
@@ -110,7 +112,7 @@ jobs:
           JS
 
       - name: Package website
-        if: steps.compare.outputs.build_required == 'true'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.compare.outputs.build_required == 'true')
         shell: bash
         run: |
           set -euo pipefail
@@ -123,7 +125,7 @@ jobs:
           tar -czf website.tar.gz -C out .
 
       - name: Authenticate to AWS
-        if: steps.compare.outputs.build_required == 'true'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.compare.outputs.build_required == 'true')
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
           role-to-assume: arn:aws:iam::429552190319:role/XpertsEdgeGitHubEC2DeployRole
@@ -133,7 +135,7 @@ jobs:
           retry-max-attempts: 3
 
       - name: Configure SSH
-        if: steps.compare.outputs.build_required == 'true'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.compare.outputs.build_required == 'true')
         env:
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
@@ -152,7 +154,7 @@ jobs:
           ssh-keygen -y -P '' -f ~/.ssh/id_ed25519 > /dev/null
 
       - name: Allow temporary SSH access
-        if: steps.compare.outputs.build_required == 'true'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.compare.outputs.build_required == 'true')
         id: ssh_access
         shell: bash
         run: |
@@ -183,7 +185,7 @@ jobs:
           echo "rule_id=$RULE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Upload and activate website
-        if: steps.compare.outputs.build_required == 'true'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.compare.outputs.build_required == 'true')
         env:
           DEPLOY_HOST: ${{ secrets.EC2_HOST }}
           DEPLOY_USER: ${{ secrets.EC2_USER }}
@@ -278,7 +280,7 @@ jobs:
           REMOTE
 
       - name: Verify deployment from GitHub runner
-        if: steps.compare.outputs.build_required == 'true'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.compare.outputs.build_required == 'true')
         env:
           DEPLOY_HOST: ${{ secrets.EC2_HOST }}
         shell: bash
@@ -323,7 +325,7 @@ jobs:
             --security-group-rule-ids "$RULE_ID"
 
       - name: Remember verified CMS deployment
-        if: success() && steps.compare.outputs.build_required == 'true'
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.compare.outputs.build_required == 'true')
         uses: actions/upload-artifact@v4
         with:
           name: xpertsedge-wp-ec2-deployed-snapshot
@@ -332,7 +334,7 @@ jobs:
           retention-days: 30
 
       - name: No content changes
-        if: steps.compare.outputs.build_required == 'false'
+        if: github.event_name == 'schedule' && steps.compare.outputs.build_required == 'false'
         run: echo "WordPress content unchanged; deployment skipped."
 
       - name: Remove runner SSH key
