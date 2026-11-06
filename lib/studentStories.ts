@@ -1,16 +1,23 @@
 /**
- * Student Reviews content. DEMO ENTRIES ONLY — replace before public launch.
+ * Student video slots. No fake testimonials or sample portraits are displayed.
  *
- * For each verified student review:
- * - set displayName, course, summary, thumbnail and videoUrl to consented real assets;
- * - current sample-portrait images are generated examples, NOT photographs of real students;
- * - change isDemo to false only once the video and student details are verified;
- * - store approved videos in /public/student-reviews/ or use a trusted CDN;
- * - do not expose students' contact details here.
+ * To publish a student video, put an approved MP4 at:
+ * public/student-reviews/videos/student-01.mp4
+ * public/student-reviews/videos/student-02.mp4
+ * ... through student-08.mp4
  *
- * The home page automatically uses the first four items.
+ * The client checks which files exist and enables those cards automatically.
+ * No data-file edits are needed just to add a numbered video.
+ *
+ * If you later want to show an actual student's name and course, edit the
+ * corresponding entry only after getting that student's permission.
  */
-export type ReviewCategory = 'Software Testing' | 'Full Stack' | 'Cloud & DevOps' | 'Career Growth'
+export type ReviewCategory =
+  | 'Student Experience'
+  | 'Software Testing'
+  | 'Full Stack'
+  | 'Cloud & DevOps'
+  | 'Career Growth'
 
 export type StudentStory = {
   id: string
@@ -22,13 +29,17 @@ export type StudentStory = {
   isDemo: boolean
 }
 
-export const studentStories: StudentStory[] = [
-  { id: '01', displayName: 'Student Story 01', course: 'Software Testing', summary: 'An introduction to our learning experience.', thumbnail: '/student-reviews/sample-portrait-01.webp', videoUrl: '/student-reviews/demo-preview-01.mp4', isDemo: true },
-  { id: '02', displayName: 'Student Story 02', course: 'Full Stack', summary: 'A look at practical, project-based learning.', thumbnail: '/student-reviews/sample-portrait-02.webp', videoUrl: '/student-reviews/demo-preview-02.mp4', isDemo: true },
-  { id: '03', displayName: 'Student Story 03', course: 'Cloud & DevOps', summary: 'Discover a hands-on technology learning journey.', thumbnail: '/student-reviews/sample-portrait-03.webp', videoUrl: '/student-reviews/demo-preview-03.mp4', isDemo: true },
-  { id: '04', displayName: 'Student Story 04', course: 'Career Growth', summary: 'The value of guidance and interview preparation.', thumbnail: '/student-reviews/sample-portrait-04.webp', videoUrl: '/student-reviews/demo-preview-04.mp4', isDemo: true },
-  { id: '05', displayName: 'Student Story 05', course: 'Software Testing', summary: 'Build confidence with real practice.', thumbnail: '/student-reviews/sample-portrait-01.webp', videoUrl: '/student-reviews/demo-preview-01.mp4', isDemo: true },
-  { id: '06', displayName: 'Student Story 06', course: 'Full Stack', summary: 'Learn to ship more complete projects.', thumbnail: '/student-reviews/sample-portrait-02.webp', videoUrl: '/student-reviews/demo-preview-02.mp4', isDemo: true },
-  { id: '07', displayName: 'Student Story 07', course: 'Cloud & DevOps', summary: 'Explore practical infrastructure workflows.', thumbnail: '/student-reviews/sample-portrait-03.webp', videoUrl: '/student-reviews/demo-preview-03.mp4', isDemo: true },
-  { id: '08', displayName: 'Student Story 08', course: 'Career Growth', summary: 'Preparing for the next professional step.', thumbnail: '/student-reviews/sample-portrait-04.webp', videoUrl: '/student-reviews/demo-preview-04.mp4', isDemo: true },
-]
+const courses: ReviewCategory[] = Array.from({ length: 8 }, () => 'Student Experience')
+
+export const studentStories: StudentStory[] = courses.map((course, index) => {
+  const number = String(index + 1).padStart(2, '0')
+  return {
+    id: number,
+    displayName: `Student Video ${number}`,
+    course,
+    summary: 'Approved student experience video.',
+    thumbnail: '',
+    videoUrl: `/student-reviews/videos/student-${number}.mp4`,
+    isDemo: false,
+  }
+})

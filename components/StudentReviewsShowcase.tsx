@@ -1,63 +1,136 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Check, ChevronRight, FileBadge2, Film, Play, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { studentStories, type StudentStory, type ReviewCategory } from '@/lib/studentStories'
 
 const categories: Array<'All Stories' | ReviewCategory> = [
-  'All Stories', 'Software Testing', 'Full Stack', 'Cloud & DevOps', 'Career Growth',
+  'All Stories',
+  'Student Experience',
 ]
 
 /**
  * Compact postcard styling with a rope, a hanging thread and a green clip.
- * Photo assets are illustrations for local demos, NOT actual student photos.
+ * Only approved videos are playable. Empty slots have no sample portraits.
  * Keeping this component separate from the original Google Reviews avoids UI regressions.
  */
 const cardTilts = ['-rotate-[2deg]', 'rotate-[1.5deg]', '-rotate-[1.5deg]', 'rotate-[2deg]']
 
-function ReviewCard({ story, index, onPlay }: { story: StudentStory; index: number; onPlay: (story: StudentStory) => void }) {
+function ReviewCard({
+  story,
+  index,
+  onPlay,
+  isReady,
+}: {
+  story: StudentStory
+  index: number
+  onPlay: (story: StudentStory) => void
+  isReady: boolean
+}) {
   return (
-    <article className={`group relative w-[218px] shrink-0 rounded-[18px] border border-[#dce6d9] bg-[#f4f7f1] p-2.5 pb-3.5 text-[#142719] shadow-[0_16px_40px_rgba(0,0,0,0.34)] transition-transform duration-300 hover:z-20 hover:-translate-y-2 hover:rotate-0 sm:w-[238px] lg:w-[252px] ${cardTilts[index % cardTilts.length]}`}>
-      {/* The clip overlaps the card, while the thread connects to the rope above. */}
+    <article className={`group relative w-[218px] shrink-0 rounded-[18px] border border-[#dce6d9] bg-[#f4f7f1] p-2.5 pb-3.5 text-[#142719] shadow-[0_16px_40px_rgba(0,0,0,0.34)] transition-transform duration-300 hover:z-20 hover:-translate-y-2 hover:rotate-0 motion-reduce:transition-none motion-reduce:hover:transform-none sm:w-[238px] lg:w-[252px] ${cardTilts[index % cardTilts.length]}`}>
       <span aria-hidden="true" className="pointer-events-none absolute -top-[38px] left-1/2 h-[38px] w-px -translate-x-1/2 bg-gradient-to-b from-[#9cbe92] to-[#7bdc76]" />
       <span aria-hidden="true" className="pointer-events-none absolute -top-[17px] left-1/2 z-10 flex h-8 w-[21px] -translate-x-1/2 items-start justify-center rounded-[5px] border border-emerald-300/70 bg-gradient-to-b from-[#83ec58] to-[#19ab56] pt-[5px] shadow-[0_3px_10px_rgba(0,0,0,0.35)]">
         <span className="h-[5px] w-[5px] rounded-full bg-[#e8ffe3]" />
       </span>
-      <button
-        type="button"
-        onClick={() => onPlay(story)}
-        aria-label={`Play ${story.displayName} ${story.isDemo ? 'demo' : 'review'} video`}
-        className="relative block w-full overflow-hidden rounded-[11px] bg-[#152a1b] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a]"
-      >
-        <span className="relative block aspect-[4/3] overflow-hidden">
-          <Image
-            src={story.thumbnail}
-            alt={story.isDemo ? `Sample visual for ${story.course}; not an actual student` : `${story.displayName} review thumbnail`}
-            fill
-            sizes="(max-width: 640px) 218px, (max-width: 1024px) 238px, 252px"
-            className="object-cover transition-transform duration-500 group-hover:scale-[1.045]"
-          />
-          <span className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" aria-hidden="true" />
-          <span className="absolute left-2 top-2 rounded-full border border-white/25 bg-black/65 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-white backdrop-blur-sm">
-            {story.isDemo ? 'Sample video' : 'Student video'}
+
+      {isReady ? (
+        <button
+          type="button"
+          onClick={() => onPlay(story)}
+          aria-label={`Play ${story.displayName}`}
+          className="relative block w-full overflow-hidden rounded-[11px] bg-[#152a1b] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a]"
+        >
+          <span className="relative block aspect-[4/3] overflow-hidden">
+            <video
+              src={`${story.videoUrl}#t=0.15`}
+              preload="metadata"
+              muted
+              playsInline
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-[1.045]"
+            />
+            <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" aria-hidden="true" />
+            <span className="absolute left-2 top-2 rounded-full border border-white/25 bg-black/65 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-white backdrop-blur-sm">
+              Student Video
+            </span>
+            <span className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-[#183321] shadow-lg transition-transform duration-300 motion-safe:group-hover:scale-110" aria-hidden="true">
+              <Play size={19} fill="currentColor" className="ml-0.5" />
+            </span>
           </span>
-          <span className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-[#183321] shadow-lg transition-transform duration-300 group-hover:scale-110" aria-hidden="true">
-            <Play size={19} fill="currentColor" className="ml-0.5" />
+        </button>
+      ) : (
+        <div className="relative flex aspect-[4/3] flex-col items-center justify-center gap-3 overflow-hidden rounded-[11px] border border-[#347849]/20 bg-gradient-to-br from-[#1f402b] via-[#122d1e] to-[#0d2117] px-3 text-center">
+          <span aria-hidden="true" className="absolute h-40 w-40 rounded-full border border-[#9ce8ad]/15" />
+          <span aria-hidden="true" className="absolute h-24 w-24 rounded-full border border-[#9ce8ad]/10" />
+          <Film size={30} strokeWidth={1.5} className="relative text-[#a4e5b7]" aria-hidden="true" />
+          <span className="relative text-[11px] font-bold uppercase tracking-[0.14em] text-[#e4f8e6]">
+            Upcoming Video
           </span>
-        </span>
-      </button>
+          <span className="relative text-[10px] text-[#a9c8b2]">Student story coming soon</span>
+        </div>
+      )}
+
       <div className="px-1.5 pt-3">
-        <h3 className="truncate text-[14px] font-bold leading-5 text-[#162519]">{story.displayName}</h3>
-        <p className="mt-0.5 truncate text-xs font-medium text-[#637569]">{story.course}</p>
+        <h3 className="truncate text-[14px] font-bold leading-5 text-[#162519]">
+          {isReady ? story.displayName : 'Upcoming Video'}
+        </h3>
+        <p className="mt-0.5 truncate text-xs font-medium text-[#637569]">
+          {isReady ? story.course : 'New student experiences soon'}
+        </p>
       </div>
     </article>
   )
 }
 
-function RopeCarousel({ stories, onPlay, label }: { stories: StudentStory[]; onPlay: (story: StudentStory) => void; label: string }) {
+/**
+ * Static-export friendly video discovery.
+ * If the correctly numbered MP4 exists in /public, its card becomes playable.
+ * Missing files are shown as "Upcoming Video" and are never opened.
+ *
+ * This runs only in the browser, so it does not depend on an API or server
+ * directory listings. A newly copied video is detected on page refresh.
+ */
+function useAvailableVideoIds() {
+  const [readyIds, setReadyIds] = useState<string[]>([])
+
+  useEffect(() => {
+    let mounted = true
+
+    async function checkVideos() {
+      const results = await Promise.all(
+        studentStories.map(async (story) => {
+          try {
+            const response = await fetch(story.videoUrl, {
+              method: 'HEAD',
+              cache: 'no-store',
+            })
+            const contentType = (response.headers.get('content-type') ?? '').toLowerCase()
+            const isVideo = contentType.startsWith('video/') || contentType.includes('octet-stream')
+            return response.ok && isVideo ? story.id : null
+          } catch {
+            return null
+          }
+        }),
+      )
+
+      if (mounted) {
+        setReadyIds(results.filter((id): id is string => id !== null))
+      }
+    }
+
+    void checkVideos()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  return readyIds
+}
+
+function RopeCarousel({ stories, onPlay, label, readyIds }: { stories: StudentStory[]; onPlay: (story: StudentStory) => void; label: string; readyIds: string[] }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const scrollCards = (direction: -1 | 1) => {
     const track = trackRef.current
@@ -83,7 +156,7 @@ function RopeCarousel({ stories, onPlay, label }: { stories: StudentStory[]; onP
         <div className="relative flex w-max min-w-full items-start gap-5 px-5 pb-9 pt-[72px] sm:gap-7 sm:px-7 lg:gap-8">
           {/* Copper rope stretches across the entire horizontally scrolling gallery. */}
           <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[34px] h-[4px] rotate-[-0.25deg] rounded-full opacity-80 shadow-[0_2px_8px_rgba(191,132,77,0.23)]" style={{ background: 'repeating-linear-gradient(105deg, #856042 0px, #d3a878 6px, #795237 12px)' }} />
-          {stories.map((story, index) => <ReviewCard key={story.id} story={story} index={index} onPlay={onPlay} />)}
+          {stories.map((story, index) => <ReviewCard key={story.id} story={story} index={index} onPlay={onPlay} isReady={readyIds.includes(story.id)} />)}
         </div>
       </div>
     </div>
@@ -123,7 +196,7 @@ function VideoDialog({ story, onClose }: { story: StudentStory; onClose: () => v
           </div>
           <button ref={closeButton} onClick={onClose} aria-label="Close video" className="rounded-full border border-white/15 p-2 text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-primary"><X size={19}/></button>
         </div>
-        <video key={story.id} src={story.videoUrl} poster={story.thumbnail} controls autoPlay playsInline preload="metadata" className="aspect-video w-full bg-black" aria-label={`${story.displayName} video`}>
+        <video key={story.id} src={story.videoUrl} poster={story.thumbnail || undefined} controls autoPlay playsInline preload="metadata" className="aspect-video w-full bg-black" aria-label={`${story.displayName} video`}>
           Your browser does not support HTML video playback.
         </video>
         {story.isDemo && <p className="px-5 py-3 text-xs text-amber-200/80">This is a temporary motion-graphic sample, not an actual student testimonial.</p>}
@@ -139,6 +212,7 @@ function useVideoDialog() {
 
 export function StudentReviewsHome() {
   const { setSelected, dialog } = useVideoDialog()
+  const readyIds = useAvailableVideoIds()
   return (
     <section id="student-video-reviews" className="relative overflow-hidden bg-background py-16 sm:py-20">
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(ellipse_at_50%_0%,rgba(34,197,94,0.065),transparent_70%)]" />
@@ -146,9 +220,9 @@ export function StudentReviewsHome() {
         <div className="mx-auto mb-7 max-w-3xl text-center">
           <p className="mb-3 inline-flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-primary"><span className="h-px w-7 bg-primary"/>Video Stories<span className="h-px w-7 bg-primary"/></p>
           <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Moments worth <span className="brand-gradient-text">sharing.</span></h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">A new space for student video experiences. The clips and visuals shown here are temporary demos.</p>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">Watch genuine student experiences as they are added. Upcoming slots will fill automatically when approved videos are published.</p>
         </div>
-        <RopeCarousel stories={studentStories.slice(0, 4)} onPlay={setSelected} label="Four sample student video cards" />
+        <RopeCarousel stories={studentStories.slice(0, 4)} onPlay={setSelected} readyIds={readyIds} label="Student videos and upcoming video slots" />
         <div className="mt-1 flex justify-center">
           <Link href="/student-reviews" className="group inline-flex items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 py-3 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-background focus-visible:outline-2 focus-visible:outline-primary">
             See More Student Reviews <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" />
@@ -169,6 +243,7 @@ const offerCards = [
 export function StudentReviewsPageContent() {
   const [activeCategory, setActiveCategory] = useState<(typeof categories)[number]>('All Stories')
   const { setSelected, dialog } = useVideoDialog()
+  const readyIds = useAvailableVideoIds()
   const visibleStories = activeCategory === 'All Stories' ? studentStories : studentStories.filter((s) => s.course === activeCategory)
   return (
     <main className="min-h-screen overflow-x-hidden bg-background pt-20 text-foreground">
@@ -182,7 +257,7 @@ export function StudentReviewsPageContent() {
               <p className="mt-6 max-w-2xl text-base leading-8 text-muted-foreground">An evolving collection of video reviews, learning experiences and student career milestones from the XpertsEdge community.</p>
             </div>
             <div className="rounded-2xl border border-primary/20 bg-[#101a13] p-6 sm:p-7">
-              <div className="flex items-start gap-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary"><Film size={23}/></div><div><p className="font-semibold text-foreground">Student-first storytelling</p><p className="mt-2 text-sm leading-6 text-muted-foreground">This preview uses sample videos and sample offer cards. Replace them with verified student media before production launch.</p></div></div>
+              <div className="flex items-start gap-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary"><Film size={23}/></div><div><p className="font-semibold text-foreground">Student-first storytelling</p><p className="mt-2 text-sm leading-6 text-muted-foreground">Video slots show Upcoming until an approved student video is added. Offer cards remain sample layouts until verified documents are available.</p></div></div>
               <div className="mt-5 flex flex-wrap gap-2"><span className="rounded-full border border-primary/20 px-3 py-1 text-xs text-primary">Video reviews</span><span className="rounded-full border border-primary/20 px-3 py-1 text-xs text-primary">Career milestones</span><span className="rounded-full border border-primary/20 px-3 py-1 text-xs text-primary">Student consent</span></div>
             </div>
           </div>
@@ -191,13 +266,13 @@ export function StudentReviewsPageContent() {
 
       <section id="video-stories" className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
         <div className="mb-10 flex flex-col justify-between gap-7 lg:flex-row lg:items-end">
-          <div><span className="text-xs font-bold uppercase tracking-[0.2em] text-primary">The Review Wall</span><h2 className="mt-3 text-3xl font-bold sm:text-4xl">Student <span className="brand-gradient-text">Video Stories</span></h2><p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">Choose a learning track, then explore the hanging video cards. All current entries are demo previews.</p></div>
-          <p className="text-sm text-muted-foreground">Showing <span className="font-semibold text-foreground">{visibleStories.length}</span> {visibleStories.length === 1 ? 'story' : 'stories'}</p>
+          <div><span className="text-xs font-bold uppercase tracking-[0.2em] text-primary">The Review Wall</span><h2 className="mt-3 text-3xl font-bold sm:text-4xl">Student <span className="brand-gradient-text">Video Stories</span></h2><p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">Explore approved student videos and upcoming video slots.</p></div>
+          <p className="text-sm text-muted-foreground">Available videos <span className="font-semibold text-foreground">{visibleStories.filter((story) => readyIds.includes(story.id)).length}</span> / {visibleStories.length}</p>
         </div>
         <div className="mb-9 flex flex-wrap gap-2" aria-label="Filter reviews by category">
           {categories.map((category) => <button key={category} type="button" onClick={() => setActiveCategory(category)} aria-pressed={activeCategory === category} className={`rounded-full border px-4 py-2.5 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-primary sm:text-sm ${activeCategory === category ? 'border-primary bg-primary text-background' : 'border-primary/20 bg-[#121512] text-muted-foreground hover:border-primary/50 hover:text-foreground'}`}>{category}</button>)}
         </div>
-        <RopeCarousel stories={visibleStories} onPlay={setSelected} label="Student video gallery" />
+        <RopeCarousel stories={visibleStories} onPlay={setSelected} readyIds={readyIds} label="Student video gallery and upcoming video slots" />
       </section>
 
       <section id="student-offers" className="relative overflow-hidden border-y border-primary/10 bg-[#0c100d] py-20 sm:py-24">
