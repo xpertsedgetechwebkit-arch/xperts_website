@@ -40,6 +40,7 @@ export default function About() {
   const ref = useRef(null)
   const inView = useInView(ref, { once: true, margin: '-100px' })
   const [activeSlide, setActiveSlide] = useState(0)
+  const [failedSlideSources, setFailedSlideSources] = useState<string[]>([])
 
   // ABOUT_CAROUSEL_PREMIUM_V1: Auto-advance with a fresh interval after manual navigation.
   // The carousel keeps running while hovered; inactive browser tabs pause it.
@@ -178,25 +179,42 @@ export default function About() {
                 }}
                 onTouchCancel={() => { touchStartX.current = null }}
               >
-                {/* Wait for the exiting photo before revealing the next one: no ghosting. */}
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.div
-                    key={aboutSlides[activeSlide].src}
-                    className="absolute inset-0"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.36, ease: 'easeInOut' }}
-                  >
-                    <Image
-                      src={aboutSlides[activeSlide].src}
-                      alt={aboutSlides[activeSlide].alt}
-                      fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 540px"
-                      className="object-cover object-center"
-                      priority={activeSlide === 0}
-                    />
-                  </motion.div>
+                {/* Keep the known-good first photo underneath transitions so the frame never turns black. */}
+                <Image
+                  src={aboutSlides[0].src}
+                  alt=""
+                  aria-hidden="true"
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 540px"
+                  className="object-cover object-center"
+                  priority
+                />
+                <AnimatePresence mode="sync" initial={false}>
+                  {activeSlide !== 0 && !failedSlideSources.includes(aboutSlides[activeSlide].src) && (
+                    <motion.div
+                      key={aboutSlides[activeSlide].src}
+                      className="absolute inset-0"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.48, ease: 'easeInOut' }}
+                    >
+                      <Image
+                        src={aboutSlides[activeSlide].src}
+                        alt={aboutSlides[activeSlide].alt}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 540px"
+                        className="object-cover object-center"
+                        onError={() => {
+                          const source = aboutSlides[activeSlide].src
+                          console.warn(`[XpertsEdge] About photo not found: ${source}. Check the deployed public assets.`)
+                          setFailedSlideSources((previous) =>
+                            previous.includes(source) ? previous : [...previous, source]
+                          )
+                        }}
+                      />
+                    </motion.div>
+                  )}
                 </AnimatePresence>
 
                 {/* Light edge treatment; keep photos free from captions or quote overlays. */}
@@ -220,11 +238,7 @@ export default function About() {
                 </button>
               </div>
 
-              <div className="flex min-h-12 items-center justify-between gap-3 border-t border-[#9ae6a9]/15 bg-gradient-to-r from-[#0d1710] via-[#0d1510] to-[#101a13] px-4 py-3 sm:px-5">
-                <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#b9d2bf]">
-                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#a3e635]" />
-                  Our campus
-                </span>
+              <div className="flex min-h-12 items-center justify-end gap-3 border-t border-[#9ae6a9]/15 bg-gradient-to-r from-[#0d1710] via-[#0d1510] to-[#101a13] px-4 py-3 sm:px-5">
                 <div className="flex items-center gap-3">
                   <span className="text-[11px] font-medium tabular-nums text-[#d5e6d8]">
                     {String(activeSlide + 1).padStart(2, '0')} / {String(aboutSlides.length).padStart(2, '0')}
