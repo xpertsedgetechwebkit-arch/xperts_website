@@ -63,11 +63,6 @@ export default function About() {
     return () => window.clearInterval(timer)
   }, [navigationCount, pageVisible])
 
-  const goToSlide = (index: number) => {
-    setActiveSlide((index + aboutSlides.length) % aboutSlides.length)
-    setNavigationCount((count) => count + 1)
-  }
-
   const changeSlide = (step: number) => {
     setActiveSlide((current) => (current + step + aboutSlides.length) % aboutSlides.length)
     setNavigationCount((count) => count + 1)
@@ -238,25 +233,6 @@ export default function About() {
                 </button>
               </div>
 
-              <div className="flex min-h-12 items-center justify-end gap-3 border-t border-[#9ae6a9]/15 bg-gradient-to-r from-[#0d1710] via-[#0d1510] to-[#101a13] px-4 py-3 sm:px-5">
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] font-medium tabular-nums text-[#d5e6d8]">
-                    {String(activeSlide + 1).padStart(2, '0')} / {String(aboutSlides.length).padStart(2, '0')}
-                  </span>
-                  <div className="flex items-center gap-1.5" aria-label="Choose a campus photo">
-                    {aboutSlides.map((slide, index) => (
-                      <button
-                        key={slide.src}
-                        type="button"
-                        onClick={() => goToSlide(index)}
-                        aria-label={`Show campus photo ${index + 1}`}
-                        aria-current={activeSlide === index ? 'true' : undefined}
-                        className={`h-1.5 rounded-full transition-all duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a3e635] motion-reduce:transition-none ${activeSlide === index ? 'w-5 bg-[#a3e635]' : 'w-1.5 bg-white/30 hover:bg-white/60'}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
             </div>
           </motion.div>
         </div>

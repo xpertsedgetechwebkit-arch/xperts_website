@@ -27,6 +27,18 @@ type Trainer = {
 
 const trainers: Trainer[] = [
   {
+    id: "udhaya",
+    name: "Udhaya",
+    role: "AI Full Stack Developer",
+    specialty: "AI & FULL STACK ENGINEERING",
+    bio: "Full Stack Developer with 10+ years of experience in delivering practical, project-based training.",
+    skills: ["React", "Node.js", "MongoDB", "JavaScript"],
+    image: "/trainers/udhaya.jpeg",
+    imagePosition: "50% 65%",
+    imageMoveY: 0,
+    portraitWidth: 208,
+  },
+  {
     id: "hari",
     name: "Haridoss",
     role: "DevOps Trainer",
@@ -69,25 +81,11 @@ const trainers: Trainer[] = [
     imageMoveY: 0,
     portraitWidth: 206,
   },
-
-  // Confirmed trainer profile 4
-  {
-    id: "udhaya",
-    name: "Udhaya",
-    role: "Full Stack Development Trainer",
-    specialty: "FULL STACK ENGINEERING",
-    bio: "Full Stack Developer with 10+ years of experience in delivering practical, project-based training.",
-    skills: ["React", "Node.js", "MongoDB", "JavaScript"],
-    image: "/trainers/udhaya.jpeg",
-    imagePosition: "50% 65%",
-    imageMoveY: 0,
-    portraitWidth: 208,
-  },
-  
 ];
 
 // Brief display copy keeps the cards compact; the full bios remain above.
 const trainerIntros: Record<string, string> = {
+  udhaya: "10+ years of full stack development and practical project training.",
   hari: "Hands-on cloud infrastructure, CI/CD, automation, and deployment.",
   arun: "Practical Playwright, TypeScript, API, and end-to-end testing.",
   "syed-irfan":
@@ -197,19 +195,12 @@ export default function ExpertTrainers() {
           </motion.div>
 
           {/* Trainers grid */}
-          <div className="mx-auto grid max-w-[1020px] auto-rows-fr grid-cols-1 items-stretch gap-5 sm:grid-cols-4 lg:grid-cols-6 lg:gap-6">
+          <div className="mx-auto grid max-w-[1160px] auto-rows-fr grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
             {trainers.map((trainer, index) => {
               const isComingSoon =
                 trainer.isComingSoon === true ||
                 trainer.specialty === "PROFILE COMING SOON";
               const portraitWidth = trainer.portraitWidth ?? 184;
-
-              const positionClass =
-                index === 3
-                  ? "lg:col-start-2"
-                  : index === 4
-                    ? "sm:col-start-2 lg:col-start-4"
-                    : "";
 
               return (
                 <motion.div
@@ -220,17 +211,17 @@ export default function ExpertTrainers() {
                   variants={reveal}
                   transition={{
                     duration: prefersReducedMotion ? 0 : 0.45,
-                    delay: prefersReducedMotion ? 0 : (index % 3) * 0.05,
+                    delay: prefersReducedMotion ? 0 : index * 0.05,
                     ease: [0.22, 1, 0.36, 1],
                   }}
-                  className={`min-w-0 sm:col-span-2 lg:col-span-2 ${positionClass}`}
+                  className="min-w-0"
                 >
                   <article
                     className={cardClasses}
                     aria-labelledby={`${trainer.id}-name`}
                   >
                     {/* A quiet portrait stage, with no labels covering the photograph. */}
-                    <div className="relative mx-3 mt-3 h-[200px] shrink-0 overflow-hidden rounded-[14px] border border-white/[0.06] bg-gradient-to-b from-[#18251c] to-[#0b130e]">
+                    <div className="relative mx-3 mt-3 h-[185px] shrink-0 sm:h-[190px] overflow-hidden rounded-[14px] border border-white/[0.06] bg-gradient-to-b from-[#18251c] to-[#0b130e]">
                       {trainer.image ? (
                         <div
                           className="relative mx-auto h-full max-w-full overflow-hidden"
@@ -268,7 +259,7 @@ export default function ExpertTrainers() {
                     </div>
 
                     {/* Trainer information */}
-                    <div className="flex flex-1 flex-col px-4 pb-4 pt-3 sm:px-5">
+                    <div className="flex flex-1 flex-col px-4 pb-4 pt-3">
                       <p className="mb-1 text-[9px] font-semibold uppercase leading-3 tracking-[0.12em] text-[#a3c4ae]">
                         {isComingSoon
                           ? trainer.isComingSoon
@@ -280,7 +271,7 @@ export default function ExpertTrainers() {
                       <div className="flex min-w-0 items-center justify-between gap-3">
                         <h3
                           id={`${trainer.id}-name`}
-                          className="text-[19px] font-semibold leading-6 tracking-tight text-white"
+                          className="text-lg font-semibold leading-6 tracking-tight text-white"
                         >
                           {trainer.name}
                         </h3>
