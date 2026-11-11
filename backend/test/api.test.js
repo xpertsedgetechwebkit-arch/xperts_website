@@ -76,3 +76,35 @@ test('health endpoint available; private data is not enumerable', async () => {
     assert.equal((await fetch(`${url}/api/leads`)).status, 404);
   });
 });
+
+
+test('OTP enforcement rejects missing access token and leaves database untouched', async () => {
+  await withServer({ otpRequired: true, verifyOtpAccessToken: async () => true }, async (url, received) => {
+    assert.equal((await post(url, payload())).status, 401);
+    assert.equal(received.length, 0);
+  });
+});
+
+test('OTP enforcement rejects a mismatched or invalid verification result', async () => {
+  await withServer({ otpRequired: true, verifyOtpAccessToken: async () => false }, async (url, received) => {
+    assert.equal((await post(url, { ...payload(), otpAccessToken: 'a'.repeat(40) })).status, 401);
+    assert.equal(received.length, 0);
+  });
+});
+
+test('OTP verified lead inserts once, token cannot be replayed', async () => {
+  const token = 'a'.repeat(50);
+  await withServer({ otpRequired: true, verifyOtpAccessToken: async (accessToken, phone) => accessToken === token && phone === '+919876543210' }, async (url, received) => {
+    assert.equal((await post(url, { ...payload(), otpAccessToken: token })).status, 201);
+    assert.equal(received.length, 1);
+    assert.equal(received[0].otpAccessToken, undefined);
+    assert.equal((await post(url, { ...payload(), otpAccessToken: token })).status, 409);
+  });
+});
+
+test('OTP provider failures fail closed', async () => {
+  await withServer({ otpRequired: true, verifyOtpAccessToken: async () => { throw new Error('network failure'); } }, async (url, received) => {
+    assert.equal((await post(url, { ...payload(), otpAccessToken: 'a'.repeat(50) })).status, 503);
+    assert.equal(received.length, 0);
+  });
+});

@@ -29,7 +29,7 @@ export type LeadDelivery = {
   notice: string | null
 }
 
-async function saveToDatabase(fields: FormFields, formType: LeadFormType, leadId: string): Promise<void> {
+async function saveToDatabase(fields: FormFields, formType: LeadFormType, leadId: string, otpAccessToken?: string): Promise<void> {
   const url = process.env.NEXT_PUBLIC_LEADS_API_URL?.trim() || '/api/leads'
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 12000)
@@ -39,6 +39,7 @@ async function saveToDatabase(fields: FormFields, formType: LeadFormType, leadId
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         leadId,
+        otpAccessToken: otpAccessToken || '',
         formType,
         name: fields.name,
         email: fields.email,
@@ -73,15 +74,27 @@ export async function submitContactOrDemoLead(
   leadId: string
 ): Promise<LeadDelivery> {
   const databaseEnabled = process.env.NEXT_PUBLIC_LEADS_DB_ENABLED === 'true'
+  const otpEnabled = process.env.NEXT_PUBLIC_MSG91_OTP_ENABLED === 'true'
+  if (otpEnabled && !databaseEnabled) {
+    throw new Error('OTP enquiries require the leads database API to be enabled.')
+  }
+  // Must verify mobile before *any* delivery, including Web3Forms.
+  // MSG91's client success alone is insufficient; the backend independently checks it.
+  let otpAccessToken: string | undefined
+  if (otpEnabled) {
+    const { requestMsg91Otp } = await import('@/lib/msg91Otp')
+    otpAccessToken = await requestMsg91Otp(fields.phone || '')
+  }
   let databaseSaved = false
   let emailSent = false
   let emailError: Error | null = null
 
   if (databaseEnabled) {
     try {
-      await saveToDatabase(fields, formType, leadId)
+      await saveToDatabase(fields, formType, leadId, otpAccessToken)
       databaseSaved = true
     } catch {
+      if (otpEnabled) throw new Error('We could not securely save your enquiry. Please try again.')
       // Never log student data, DB credentials, or raw API request details.
       console.warn('[XpertsEdge] Lead database delivery failed; trying email fallback.')
     }

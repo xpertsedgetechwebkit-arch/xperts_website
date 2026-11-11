@@ -15,6 +15,7 @@ const validIndianPhone = (phone) => {
 export const leadSchema = z.object({
   // The website generates this once for a repeated submit attempt.
   leadId: z.string().uuid(),
+  otpAccessToken: optionalText(4096), // Verified with MSG91 server-side when OTP is enabled.
   formType: z.enum(['contact', 'free_demo', 'registration', 'careers']),
   name: z.string().trim().min(2).max(150),
   email: z.string().trim().email().max(254),
