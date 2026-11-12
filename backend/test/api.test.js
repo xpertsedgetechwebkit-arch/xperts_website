@@ -108,3 +108,37 @@ test('OTP provider failures fail closed', async () => {
     assert.equal(received.length, 0);
   });
 });
+
+test('simultaneous requests cannot redeem the same OTP twice',
+  { timeout: 5000 }, async () => {
+    const token = 'c'.repeat(50);
+    let verificationCount = 0;
+    let releaseVerification;
+
+    const bothVerifying = new Promise(resolve => {
+      releaseVerification = resolve;
+    });
+
+    await withServer({
+      otpRequired: true,
+      verifyOtpAccessToken: async () => {
+        verificationCount += 1;
+        if (verificationCount === 2) releaseVerification();
+        await bothVerifying;
+        return true;
+      },
+    }, async (url, received) => {
+      const responses = await Promise.all([
+        post(url, { ...payload(), otpAccessToken: token }),
+        post(url, { ...payload(), otpAccessToken: token }),
+      ]);
+
+      const statuses = responses
+        .map(response => response.status)
+        .sort((a, b) => a - b);
+
+      assert.deepEqual(statuses, [201, 409]);
+      assert.equal(received.length, 1);
+      assert.equal(received[0].otpAccessToken, undefined);
+    });
+  });

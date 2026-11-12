@@ -95,7 +95,14 @@ export function createApp({ insertLead, checkDatabase, allowedOrigins, rateLimit
         return res.status(503).json({ success: false, message: 'Mobile verification temporarily unavailable.' });
       }
       if (!valid) return res.status(401).json({ success: false, message: 'Mobile verification failed.' });
-      // Single-process token lock before async insert prevents concurrent replays.
+      // Recheck after async verification: another request may have redeemed it.
+      if (redeemedTokens.has(fingerprint)) {
+        return res.status(409).json({
+          success: false,
+          message: 'OTP already used. Please verify again.',
+        });
+      }
+      // No await between this check and setting the per-process lock.
       redeemedTokens.set(fingerprint, now + 15 * 60 * 1000);
       try {
         const { otpAccessToken: _unused, ...lead } = result.data;
