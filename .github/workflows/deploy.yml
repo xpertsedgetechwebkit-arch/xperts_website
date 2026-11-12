@@ -33,6 +33,12 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Test backend API
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          npm --prefix backend ci
+          npm --prefix backend test
+
       - name: Test WordPress monitoring
         run: node --test tests/*.test.mjs
 
