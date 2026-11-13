@@ -252,7 +252,7 @@ export default function Contact() {
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="phone" className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
-                      Phone
+                      Phone {process.env.NEXT_PUBLIC_MSG91_OTP_ENABLED === 'true' && <span className="text-primary">*</span>}
                     </label>
                     <div className="flex">
                       <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-border bg-primary/10 text-primary text-sm font-semibold select-none flex-shrink-0">
@@ -262,6 +262,7 @@ export default function Contact() {
                         id="phone"
                         name="phone"
                         type="tel"
+                        required={process.env.NEXT_PUBLIC_MSG91_OTP_ENABLED === 'true'}
                         {...phoneAttrs}
                         value={formState.phone}
                         onChange={handleChange}

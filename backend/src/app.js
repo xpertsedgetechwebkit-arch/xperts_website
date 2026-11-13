@@ -3,8 +3,15 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { validateLead } from './validation.js';
+import { createHash } from 'node:crypto';
 
-export function createApp({ insertLead, checkDatabase, allowedOrigins, rateLimitMax = 30 }) {
+export function createApp({ insertLead, checkDatabase, allowedOrigins, rateLimitMax = 30, otpRequired = false, verifyOtpAccessToken }) {
+  if (otpRequired && typeof verifyOtpAccessToken !== 'function') {
+    throw new Error('MSG91 verifier is required when OTP enforcement is enabled.');
+  }
+  // Per-process replay protection; MSG91 verification is the source of truth.
+  // For multiple API workers, replace this map with an atomic shared store.
+  const redeemedTokens = new Map();
   const app = express();
   const allow = new Set(allowedOrigins);
   // Nginx must forward its own $remote_addr, not an untrusted chain of IP headers.
@@ -74,8 +81,41 @@ export function createApp({ insertLead, checkDatabase, allowedOrigins, rateLimit
       // Honeypot bots get an uninformative response without a database write.
       return res.status(202).json({ success: true, accepted: true });
     }
+    if (otpRequired) {
+      const accessToken = result.data.otpAccessToken;
+      if (!accessToken) return res.status(401).json({ success: false, message: 'Mobile verification required.' });
+      const fingerprint = createHash('sha256').update(accessToken).digest('hex');
+      const now = Date.now();
+      for (const [key, expiry] of redeemedTokens) if (expiry < now) redeemedTokens.delete(key);
+      if (redeemedTokens.has(fingerprint)) return res.status(409).json({ success: false, message: 'OTP already used. Please verify again.' });
+      let valid;
+      try {
+        valid = await verifyOtpAccessToken(accessToken, result.data.phone);
+      } catch {
+        return res.status(503).json({ success: false, message: 'Mobile verification temporarily unavailable.' });
+      }
+      if (!valid) return res.status(401).json({ success: false, message: 'Mobile verification failed.' });
+      // Recheck after async verification: another request may have redeemed it.
+      if (redeemedTokens.has(fingerprint)) {
+        return res.status(409).json({
+          success: false,
+          message: 'OTP already used. Please verify again.',
+        });
+      }
+      // No await between this check and setting the per-process lock.
+      redeemedTokens.set(fingerprint, now + 15 * 60 * 1000);
+      try {
+        const { otpAccessToken: _unused, ...lead } = result.data;
+        const { created } = await insertLead(lead);
+        return res.status(created ? 201 : 200).json({ success: true, leadId: lead.leadId, duplicate: !created });
+      } catch {
+        redeemedTokens.delete(fingerprint); // allow retry after transient DB failures
+        return res.status(503).json({ success: false, message: 'Enquiry service is temporarily unavailable.' });
+      }
+    }
     try {
-      const { created } = await insertLead(result.data);
+      const { otpAccessToken: _unused, ...lead } = result.data;
+      const { created } = await insertLead(lead);
       return res.status(created ? 201 : 200).json({
         success: true,
         leadId: result.data.leadId,
