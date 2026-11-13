@@ -13,8 +13,8 @@ test('valid verified phone matches the lead, using the server AuthKey only', asy
     authKey: 'secret',
     fetchImpl: async (url, options) => {
       assert.equal(url, 'https://control.msg91.com/api/v5/widget/verifyAccessToken');
-      assert.equal(options.headers.authkey, 'secret');
-      assert.deepEqual(JSON.parse(options.body), { 'access-token': token });
+      assert.equal(options.headers.authkey, undefined);
+      assert.deepEqual(JSON.parse(options.body), { authkey: 'secret', 'access-token': token });
       return { ok: true, json: async () => ({ type: 'success', message: '919876543210' }) };
     },
   });

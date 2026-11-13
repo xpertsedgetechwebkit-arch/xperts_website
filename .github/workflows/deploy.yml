@@ -78,6 +78,9 @@ jobs:
         env:
           NEXT_PUBLIC_LEADS_DB_ENABLED: 'true'
           NEXT_PUBLIC_LEADS_API_URL: '/api/leads'
+          NEXT_PUBLIC_MSG91_OTP_ENABLED: ${{ vars.NEXT_PUBLIC_MSG91_OTP_ENABLED }}
+          NEXT_PUBLIC_MSG91_WIDGET_ID: ${{ vars.NEXT_PUBLIC_MSG91_WIDGET_ID }}
+          NEXT_PUBLIC_MSG91_WIDGET_TOKEN: ${{ vars.NEXT_PUBLIC_MSG91_WIDGET_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -129,6 +132,15 @@ jobs:
             "const fs=require('fs'); const s=JSON.parse(fs.readFileSync('monitor-state/snapshot.json','utf8')); fs.writeFileSync('out/cms-content.txt',s.sha256+'\n')"
 
           tar -czf website.tar.gz -C out .
+
+      - name: Package backend API
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s backend/src/server.js
+          test -s backend/package-lock.json
+          tar -czf backend.tar.gz -C backend src package.json package-lock.json
 
       - name: Authenticate to AWS
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.compare.outputs.build_required == 'true')
@@ -189,6 +201,96 @@ jobs:
           test -n "$RULE_ID"
           test "$RULE_ID" != "None"
           echo "rule_id=$RULE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Upload and activate backend API
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        timeout-minutes: 8
+        env:
+          DEPLOY_HOST: ${{ secrets.EC2_HOST }}
+          DEPLOY_USER: ${{ secrets.EC2_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          RELEASE="api-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
+
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=20 backend.tar.gz \
+            "${TARGET}:/opt/xpertsedge-api/releases/${RELEASE}.tar.gz"
+
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=20 -o ServerAliveInterval=15 \
+            "$TARGET" "bash -s -- '$RELEASE'" <<'REMOTE'
+          set -euo pipefail
+          umask 022
+          BASE=/opt/xpertsedge-api
+          RELEASE="$1"
+          DEST="$BASE/releases/$RELEASE"
+          PREVIOUS="$(readlink -f "$BASE/current")"
+          test -s "$PREVIOUS/src/server.js"
+          SWITCHED=false
+          VERIFIED=false
+
+          healthy() {
+            local EXPECTED_DIR="$1"
+            local PID
+            for ATTEMPT in {1..30}; do
+              PID="$(systemctl show xpertsedge-api.service -p MainPID --value)"
+              if [ "$PID" != "0" ] &&
+                [ "$(readlink -f "/proc/$PID/cwd" || true)" = "$EXPECTED_DIR" ] &&
+                curl -fsS --max-time 5 http://127.0.0.1:3001/api/health >/dev/null &&
+                curl -fsS --max-time 5 http://127.0.0.1:3001/api/health/ready >/dev/null; then
+                return 0
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
+          cleanup() {
+            RESULT=$?
+            trap - EXIT
+            if [ "$SWITCHED" = true ] && [ "$VERIFIED" != true ]; then
+              echo "Restoring previous backend."
+              if ln -sfn "$PREVIOUS" "$BASE/current-rollback" &&
+                mv -Tf "$BASE/current-rollback" "$BASE/current" &&
+                sudo -n /usr/bin/systemctl restart xpertsedge-api.service &&
+                healthy "$PREVIOUS"; then
+                echo "Previous backend restored and healthy."
+              else
+                echo "ERROR: Backend rollback needs manual attention."
+              fi
+              RESULT=1
+            fi
+            exit "$RESULT"
+          }
+          trap cleanup EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM HUP
+
+          mkdir "$DEST"
+          tar -xzf "$BASE/releases/$RELEASE.tar.gz" -C "$DEST"
+          test -s "$DEST/src/server.js"
+          test ! -e "$DEST/.env"
+
+          (
+            cd "$DEST"
+            /usr/bin/npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+            /usr/bin/node --check src/server.js
+            /usr/bin/node --check src/app.js
+          )
+
+          ln -sfn "$DEST" "$BASE/current-next"
+          SWITCHED=true
+          mv -Tf "$BASE/current-next" "$BASE/current"
+          sudo -n /usr/bin/systemctl restart xpertsedge-api.service
+          healthy "$DEST"
+          VERIFIED=true
+          rm -f "$BASE/releases/$RELEASE.tar.gz"
+          echo "Backend deployment verified."
+          REMOTE
 
       - name: Upload and activate website
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || steps.compare.outputs.build_required == 'true')

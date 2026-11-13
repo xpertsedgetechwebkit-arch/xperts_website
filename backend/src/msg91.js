@@ -16,8 +16,8 @@ export function createMsg91Verifier({ authKey, fetchImpl = fetch }) {
     if (!expected) return false;
     const response = await fetchImpl(VERIFY_URL, {
       method: 'POST',
-      headers: { 'authkey': authKey, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 'access-token': accessToken }),
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ authkey: authKey, 'access-token': accessToken }),
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) return false;
