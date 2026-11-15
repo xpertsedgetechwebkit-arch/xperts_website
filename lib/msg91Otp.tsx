@@ -23,8 +23,8 @@ declare global {
   }
 }
 
-const widgetId = process.env.NEXT_PUBLIC_MSG91_WIDGET_ID || ''
-const tokenAuth = process.env.NEXT_PUBLIC_MSG91_WIDGET_TOKEN || ''
+const widgetId = (process.env.NEXT_PUBLIC_MSG91_WIDGET_ID || '').trim()
+const tokenAuth = (process.env.NEXT_PUBLIC_MSG91_WIDGET_TOKEN || '').trim()
 let activeDialog = false
 
 function extractAccessToken(value: unknown): string | null {
@@ -64,7 +64,21 @@ function Dialog({ phone, resolve, reject }: {
   const completed = useRef(false)
 
   useEffect(() => {
-    if (!widgetId || !tokenAuth) {
+    if (!busy) return
+
+    const timer = window.setTimeout(() => {
+      if (completed.current) return
+      completed.current = true
+      reject(new Error(
+        'Mobile verification timed out. No enquiry was submitted. Please reload the page and try again.'
+      ))
+    }, 90000)
+
+    return () => window.clearTimeout(timer)
+  }, [busy, reject])
+
+  useEffect(() => {
+    if (!widgetId || !tokenAuth || /\s/.test(widgetId) || /\s/.test(tokenAuth)) {
       setInitializing(false)
       setError('MSG91 Widget configuration is missing. Contact the website administrator.')
       return
@@ -128,13 +142,14 @@ function Dialog({ phone, resolve, reject }: {
     setBusy(true)
     window.sendOtp(phone,
       (response) => {
+        if (completed.current) return
         requestId.current = extractRequestId(response)
         setSent(true)
         setLastSent(Date.now())
         setSeconds(60)
         setBusy(false)
       },
-      (failure) => { setError(errorMessage(failure)); setBusy(false) }
+      (failure) => { if (completed.current) return; setError(errorMessage(failure)); setBusy(false) }
     )
   }
   const resend = () => {
@@ -142,10 +157,11 @@ function Dialog({ phone, resolve, reject }: {
     setError(''); setBusy(true)
     window.retryOtp(null,
       (response) => {
+        if (completed.current) return
         requestId.current = extractRequestId(response) || requestId.current
         setLastSent(Date.now()); setSeconds(60); setBusy(false)
       },
-      (failure) => { setError(errorMessage(failure)); setBusy(false) },
+      (failure) => { if (completed.current) return; setError(errorMessage(failure)); setBusy(false) },
       requestId.current
     )
   }
@@ -154,6 +170,7 @@ function Dialog({ phone, resolve, reject }: {
     setError(''); setBusy(true)
     window.verifyOtp(otp,
       (response) => {
+        if (completed.current) return
         const token = extractAccessToken(response)
         if (!token) {
           setError('OTP response did not include a verification token.')
@@ -165,7 +182,7 @@ function Dialog({ phone, resolve, reject }: {
           resolve(token)
         }
       },
-      (failure) => { setError(errorMessage(failure)); setBusy(false) },
+      (failure) => { if (completed.current) return; setError(errorMessage(failure)); setBusy(false) },
       requestId.current
     )
   }
