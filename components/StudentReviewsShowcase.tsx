@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Check, ChevronRight, FileBadge2, Film, Play, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ChevronRight, Film, Play, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { studentStories, type StudentStory, type ReviewCategory } from '@/lib/studentStories'
 
 const categories: Array<'All Stories' | ReviewCategory> = [
@@ -153,7 +154,7 @@ function RopeCarousel({ stories, onPlay, label, readyIds }: { stories: StudentSt
         tabIndex={0}
         className="overflow-x-auto overscroll-x-contain scroll-smooth pb-2 [scrollbar-width:thin] [scrollbar-color:#346d3a_transparent] focus-visible:outline-2 focus-visible:outline-primary"
       >
-        <div className="relative flex w-max min-w-full items-start gap-5 px-5 pb-9 pt-[72px] sm:gap-7 sm:px-7 lg:gap-8">
+        <div className="relative flex w-max min-w-full items-start justify-center gap-5 px-5 pb-9 pt-[72px] sm:gap-9 sm:px-7 lg:gap-[72px]">
           {/* Copper rope stretches across the entire horizontally scrolling gallery. */}
           <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[34px] h-[4px] rotate-[-0.25deg] rounded-full opacity-80 shadow-[0_2px_8px_rgba(191,132,77,0.23)]" style={{ background: 'repeating-linear-gradient(105deg, #856042 0px, #d3a878 6px, #795237 12px)' }} />
           {stories.map((story, index) => <ReviewCard key={story.id} story={story} index={index} onPlay={onPlay} isReady={readyIds.includes(story.id)} />)}
@@ -196,7 +197,7 @@ function VideoDialog({ story, onClose }: { story: StudentStory; onClose: () => v
           </div>
           <button ref={closeButton} onClick={onClose} aria-label="Close video" className="rounded-full border border-white/15 p-2 text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-primary"><X size={19}/></button>
         </div>
-        <video key={story.id} src={story.videoUrl} poster={story.thumbnail || undefined} controls autoPlay playsInline preload="metadata" className="aspect-video w-full bg-black" aria-label={`${story.displayName} video`}>
+        <video key={story.id} src={story.videoUrl} poster={story.thumbnail || undefined} controls autoPlay playsInline preload="metadata" className="max-h-[75vh] w-full bg-black object-contain" aria-label={`${story.displayName} video`}>
           Your browser does not support HTML video playback.
         </video>
         {story.isDemo && <p className="px-5 py-3 text-xs text-amber-200/80">This is a temporary motion-graphic sample, not an actual student testimonial.</p>}
@@ -220,9 +221,9 @@ export function StudentReviewsHome() {
         <div className="mx-auto mb-7 max-w-3xl text-center">
           <p className="mb-3 inline-flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-primary"><span className="h-px w-7 bg-primary"/>Video Stories<span className="h-px w-7 bg-primary"/></p>
           <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Moments worth <span className="brand-gradient-text">sharing.</span></h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">Watch genuine student experiences as they are added. Upcoming slots will fill automatically when approved videos are published.</p>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">Watch genuine student experiences and inspiring learner stories.</p>
         </div>
-        <RopeCarousel stories={studentStories.slice(0, 4)} onPlay={setSelected} readyIds={readyIds} label="Student videos and upcoming video slots" />
+        <RopeCarousel stories={studentStories.filter((story) => readyIds.includes(story.id)).slice(0, 4)} onPlay={setSelected} readyIds={readyIds} label="Available student videos" />
         <div className="mt-1 flex justify-center">
           <Link href="/student-reviews" className="group inline-flex items-center gap-2 rounded-full border border-primary/50 bg-primary/10 px-6 py-3 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-background focus-visible:outline-2 focus-visible:outline-primary">
             See More Student Reviews <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" />
@@ -235,16 +236,66 @@ export function StudentReviewsHome() {
 }
 
 const offerCards = [
-  { number: '01', heading: 'Offer Letter Preview', note: 'Approved student offer letters can be displayed here.', tint: 'from-emerald-500/20' },
-  { number: '02', heading: 'Placement Milestone', note: 'Show the verified offer and placement journey.', tint: 'from-lime-500/20' },
-  { number: '03', heading: 'Career Achievement', note: 'Add a student-approved achievement document.', tint: 'from-teal-500/20' },
+  { number: '01', image: '/student-reviews/offers/offer-01.jpeg', heading: 'Playwright Automation Testing', note: 'Offer letter highlight' },
+  { number: '02', image: '/student-reviews/offers/offer-02.jpeg', heading: 'Automation Testing', note: 'Offer letter highlight' },
+  { number: '03', image: '/student-reviews/offers/offer-03.jpeg', heading: 'QA Engineer', note: 'Offer letter highlight' },
+  { number: '04', image: '/student-reviews/offers/offer-04.jpeg', heading: 'Automation Testing', note: 'Offer letter highlight' },
+  { number: '05', image: '/student-reviews/offers/offer-05.jpeg', heading: 'Software Engineer', note: 'Offer letter highlight' },
+  { number: '06', image: '/student-reviews/offers/offer-06.jpeg', heading: 'AI Engineer', note: 'Offer letter highlight' },
+  { number: '07', image: '/student-reviews/offers/offer-07.jpeg', heading: 'Playwright Automation Testing', note: 'Offer letter highlight' },
+  { number: '08', image: '/student-reviews/offers/offer-08.jpeg', heading: 'Automation Testing', note: 'Offer letter highlight' },
 ]
+
+function OfferLetterGallery() {
+  const [selected, setSelected] = useState<(typeof offerCards)[number] | null>(null)
+  useEffect(() => {
+    if (!selected) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelected(null)
+    }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [selected])
+
+  return (
+    <>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {offerCards.map((offer) => (
+          <article key={offer.number} className="group overflow-hidden rounded-2xl border border-primary/15 bg-[#131914] p-3 transition-colors hover:border-primary/40 sm:p-4">
+            <button type="button" onClick={() => setSelected(offer)} aria-label={`View ${offer.heading} offer image ${offer.number}`} className="block w-full rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
+              <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-white">
+                <Image src={offer.image} alt={`${offer.heading} offer letter image ${offer.number}; selected personal details obscured`} fill sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 23vw" className="object-contain transition-transform duration-300 group-hover:scale-[1.02]" />
+              </div>
+              <h3 className="mt-4 text-sm font-semibold leading-6 text-foreground">{offer.heading}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">{offer.note} · View image</p>
+            </button>
+          </article>
+        ))}
+      </div>
+      <AnimatePresence>
+        {selected && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }} role="presentation" className="fixed inset-0 z-[250] flex items-center justify-center bg-black/90 p-4 backdrop-blur-lg">
+            <motion.div initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }} role="dialog" aria-modal="true" aria-label={`${selected.heading} offer letter`} className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-primary/30 bg-[#101510]">
+              <div className="flex items-center justify-between gap-3 px-4 py-3"><p className="truncate text-sm font-semibold text-foreground">{selected.heading}</p><button type="button" autoFocus onClick={() => setSelected(null)} aria-label="Close offer letter" className="rounded-full border border-white/20 p-2 text-white hover:bg-white/10"><X size={18}/></button></div>
+              <div className="min-h-0 overflow-y-auto bg-[#0b0f0c] p-2 text-center"><Image src={selected.image} alt={`${selected.heading} offer letter image`} width={1080} height={1650} sizes="(max-width: 768px) 95vw, 720px" className="mx-auto h-auto max-w-full" /></div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  )
+}
 
 export function StudentReviewsPageContent() {
   const [activeCategory, setActiveCategory] = useState<(typeof categories)[number]>('All Stories')
   const { setSelected, dialog } = useVideoDialog()
   const readyIds = useAvailableVideoIds()
-  const visibleStories = activeCategory === 'All Stories' ? studentStories : studentStories.filter((s) => s.course === activeCategory)
+  const visibleStories = studentStories.filter((story) => readyIds.includes(story.id) && (activeCategory === 'All Stories' || story.course === activeCategory))
   return (
     <main className="min-h-screen overflow-x-hidden bg-background pt-20 text-foreground">
       <section className="relative overflow-hidden border-b border-primary/10 pb-16 pt-20 sm:pb-24 sm:pt-28">
@@ -257,7 +308,7 @@ export function StudentReviewsPageContent() {
               <p className="mt-6 max-w-2xl text-base leading-8 text-muted-foreground">An evolving collection of video reviews, learning experiences and student career milestones from the XpertsEdge community.</p>
             </div>
             <div className="rounded-2xl border border-primary/20 bg-[#101a13] p-6 sm:p-7">
-              <div className="flex items-start gap-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary"><Film size={23}/></div><div><p className="font-semibold text-foreground">Student-first storytelling</p><p className="mt-2 text-sm leading-6 text-muted-foreground">Video slots show Upcoming until an approved student video is added. Offer cards remain sample layouts until verified documents are available.</p></div></div>
+              <div className="flex items-start gap-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary"><Film size={23}/></div><div><p className="font-semibold text-foreground">Student-first storytelling</p><p className="mt-2 text-sm leading-6 text-muted-foreground">Only available, approved student videos are displayed. Browse student-approved offer letter highlights below.</p></div></div>
               <div className="mt-5 flex flex-wrap gap-2"><span className="rounded-full border border-primary/20 px-3 py-1 text-xs text-primary">Video reviews</span><span className="rounded-full border border-primary/20 px-3 py-1 text-xs text-primary">Career milestones</span><span className="rounded-full border border-primary/20 px-3 py-1 text-xs text-primary">Student consent</span></div>
             </div>
           </div>
@@ -266,34 +317,24 @@ export function StudentReviewsPageContent() {
 
       <section id="video-stories" className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
         <div className="mb-10 flex flex-col justify-between gap-7 lg:flex-row lg:items-end">
-          <div><span className="text-xs font-bold uppercase tracking-[0.2em] text-primary">The Review Wall</span><h2 className="mt-3 text-3xl font-bold sm:text-4xl">Student <span className="brand-gradient-text">Video Stories</span></h2><p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">Explore approved student videos and upcoming video slots.</p></div>
+          <div><span className="text-xs font-bold uppercase tracking-[0.2em] text-primary">The Review Wall</span><h2 className="mt-3 text-3xl font-bold sm:text-4xl">Student <span className="brand-gradient-text">Video Stories</span></h2><p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">Explore approved student video stories and experiences.</p></div>
           <p className="text-sm text-muted-foreground">Available videos <span className="font-semibold text-foreground">{visibleStories.filter((story) => readyIds.includes(story.id)).length}</span> / {visibleStories.length}</p>
         </div>
         <div className="mb-9 flex flex-wrap gap-2" aria-label="Filter reviews by category">
           {categories.map((category) => <button key={category} type="button" onClick={() => setActiveCategory(category)} aria-pressed={activeCategory === category} className={`rounded-full border px-4 py-2.5 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-primary sm:text-sm ${activeCategory === category ? 'border-primary bg-primary text-background' : 'border-primary/20 bg-[#121512] text-muted-foreground hover:border-primary/50 hover:text-foreground'}`}>{category}</button>)}
         </div>
-        <RopeCarousel stories={visibleStories} onPlay={setSelected} readyIds={readyIds} label="Student video gallery and upcoming video slots" />
+        <RopeCarousel stories={visibleStories} onPlay={setSelected} readyIds={readyIds} label="Available student video gallery" />
       </section>
 
       <section id="student-offers" className="relative overflow-hidden border-y border-primary/10 bg-[#0c100d] py-20 sm:py-24">
         <div aria-hidden="true" className="pointer-events-none absolute -left-36 top-0 h-96 w-96 rounded-full bg-lime-400/[0.04] blur-[90px]" />
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
-            <div><span className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Beyond the Classroom</span><h2 className="mt-3 text-3xl font-bold text-foreground sm:text-4xl">Student Offers <span className="brand-gradient-text">& Milestones</span></h2><p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">A dedicated space for verified offer letters and student-approved career achievements.</p></div>
-            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/5 px-4 py-2 text-xs font-medium text-amber-200"><ShieldCheck size={15}/> Sample layouts only</span>
+            <div><span className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Beyond the Classroom</span><h2 className="mt-3 text-3xl font-bold text-foreground sm:text-4xl">Student Offers <span className="brand-gradient-text">& Milestones</span></h2><p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">Browse student offer letter highlights and career milestones.</p></div>
+            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/5 px-4 py-2 text-xs font-medium text-amber-200"><ShieldCheck size={15}/> Student offer highlights</span>
           </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {offerCards.map((offer) => <article key={offer.number} className="group overflow-hidden rounded-2xl border border-primary/15 bg-[#131914] p-5 transition-colors hover:border-primary/40 sm:p-6">
-              <div className={`relative flex aspect-[5/4] flex-col justify-between overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br ${offer.tint} via-[#132219] to-[#0c1110] p-6`}>
-                <span className="absolute right-[-41px] top-7 rotate-45 border-y border-white/15 bg-amber-400/10 px-12 py-1 text-[11px] font-bold tracking-[0.2em] text-amber-200">SAMPLE</span>
-                <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15 text-primary"><FileBadge2 size={24}/></div><div><p className="text-xs font-bold tracking-[0.14em] text-white/90">XPERTSEDGE</p><p className="text-[10px] text-white/50">STUDENT MILESTONES</p></div></div>
-                <div className="space-y-3"><p className="text-2xl font-bold text-white/90">Achievement<br/>Preview</p><div className="h-px w-4/5 bg-white/20"/><div className="h-1.5 w-3/5 rounded-full bg-white/15"/><div className="h-1.5 w-2/5 rounded-full bg-white/15"/></div>
-                <div className="flex items-center gap-2 text-xs text-primary"><Check size={14}/> Verified document placeholder</div>
-              </div>
-              <h3 className="mt-5 text-lg font-semibold text-foreground">{offer.heading}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{offer.note}</p>
-            </article>)}
-          </div>
-          <p className="mt-7 text-center text-xs leading-relaxed text-muted-foreground">Only publish offer letters after receiving student permission. Blur personal addresses, phone numbers, salaries and other private information.</p>
+          <OfferLetterGallery />
+          <p className="mt-7 text-center text-xs leading-relaxed text-muted-foreground">Student details have been partially obscured in the supplied images. Publication requires the student’s permission; contact us if a document needs to be updated or removed.</p>
         </div>
       </section>
 

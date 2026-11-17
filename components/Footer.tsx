@@ -64,6 +64,7 @@ const footerLinks = [
   {
     heading: 'Programs',
     links: [
+      { label: 'Gen AI', href: '/curriculum/gen-ai', isAnchor: false },
       { label: 'Java Full Stack', href: '/curriculum/java-full-stack', isAnchor: false },
       { label: 'MERN Stack', href: '/curriculum/mern-stack', isAnchor: false },
       { label: 'Manual Testing', href: '/curriculum/manual-testing', isAnchor: false },
