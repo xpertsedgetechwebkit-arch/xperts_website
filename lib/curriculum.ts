@@ -19,6 +19,134 @@ export type Curriculum = {
 }
 
 export const curricula: Record<string, Curriculum> = {
+  "gen-ai": {
+    "slug": "gen-ai",
+    "title": "Generative Artificial Intelligence (Gen AI)",
+    "tagline": "Build practical AI skills with Python, LLMs, Prompt Engineering and RAG",
+    "overview": "A structured, hands-on 2-month program introducing AI and Generative AI fundamentals, Python, basic NLP, large language models, prompt engineering, embeddings, vector databases, retrieval-augmented generation (RAG), intelligent applications and introductory deployment. Learn through mini projects and an end-to-end company-knowledge chatbot capstone, supported by portfolio and interview preparation.",
+    "duration": "2 Months",
+    "mode": "Hands-On Training",
+    "learn": [
+      "Understand AI and GenAI fundamentals and practical use cases",
+      "Write Python for AI applications using NumPy, Pandas and Requests",
+      "Work with NLP fundamentals, transformers and large language models",
+      "Design zero-shot and few-shot prompts and understand model adaptation concepts",
+      "Build embeddings and semantic search using FAISS and Chroma",
+      "Create end-to-end RAG workflows with document ingestion and retrieval",
+      "Develop chatbots, document summarizers and AI-powered applications",
+      "Explore APIs, simple UIs, containers and introductory MLOps concepts"
+    ],
+    "audience": [
+      "Freshers and Graduates",
+      "Working Professionals",
+      "Career Switchers",
+      "Non-IT Professionals",
+      "Developers and QA Engineers",
+      "Anyone interested in practical GenAI"
+    ],
+    "topics": [
+      {
+        "group": "AI and GenAI Fundamentals",
+        "items": [
+          "What is AI and Generative AI",
+          "Types of AI (overview)",
+          "GenAI use cases in real projects",
+          "Responsible AI basics"
+        ]
+      },
+      {
+        "group": "Python for GenAI",
+        "items": [
+          "Variables, data types, conditions, loops and functions",
+          "Strings, lists and dictionaries",
+          "Basic file handling",
+          "NumPy, Pandas and Requests"
+        ]
+      },
+      {
+        "group": "NLP and LLMs",
+        "items": [
+          "NLP, preprocessing and tokenization",
+          "GPT, LLaMA and Falcon overviews",
+          "Transformers and embeddings",
+          "LLM capabilities and limitations"
+        ]
+      },
+      {
+        "group": "Prompt Engineering and Model Adaptation",
+        "items": [
+          "Zero-shot and few-shot prompting",
+          "Chain-of-thought prompting (concept)",
+          "Fine-tuning overview",
+          "LoRA and PEFT introduction"
+        ]
+      },
+      {
+        "group": "Embeddings and Vector Databases",
+        "items": [
+          "What embeddings are and why they matter",
+          "Semantic search and retrieval",
+          "FAISS basics",
+          "Chroma basics"
+        ]
+      },
+      {
+        "group": "Retrieval-Augmented Generation (RAG)",
+        "items": [
+          "RAG concepts and architecture",
+          "Document ingestion and embedding creation",
+          "Query and response workflow",
+          "End-to-end retrieval implementation"
+        ]
+      },
+      {
+        "group": "GenAI Applications and Projects",
+        "items": [
+          "OpenAI API and Hugging Face models",
+          "Chatbot development",
+          "Document summarizer and interview Q&A bot",
+          "AI content tools and text-to-image overview",
+          "Company knowledge chatbot capstone with document upload"
+        ]
+      },
+      {
+        "group": "Deployment and Career Preparation",
+        "items": [
+          "FastAPI or Flask API basics",
+          "Streamlit or Gradio introduction",
+          "Docker, CI/CD and monitoring basics",
+          "AWS S3 and Lambda introductory usage",
+          "Portfolio, mock interviews and interview preparation"
+        ]
+      }
+    ],
+    "modules": [
+      {
+        "name": "Module 1: Foundations and Python",
+        "desc": "AI/GenAI fundamentals, practical use cases, Python foundations and libraries."
+      },
+      {
+        "name": "Module 2: NLP, LLMs and Prompts",
+        "desc": "NLP basics, transformer and LLM concepts, prompt engineering and model adaptation overview."
+      },
+      {
+        "name": "Module 3: Vector Search and RAG",
+        "desc": "Embeddings, vector databases, document ingestion and retrieval-augmented generation."
+      },
+      {
+        "name": "Module 4: GenAI Applications and Deployment",
+        "desc": "Chatbots, mini projects, company-knowledge RAG capstone, API deployment basics and interview preparation."
+      }
+    ],
+    "outcomes": [
+      "Practical GenAI application portfolio",
+      "Foundational skills for GenAI Developer and AI Engineer pathways",
+      "Experience building a chatbot and RAG capstone",
+      "Familiarity with LLMs, prompt design and vector search",
+      "Preparation for interviews and AI project discussions"
+    ],
+    "pdf": "/curriculum/XpertsEdge_GENAI.pdf"
+  },
   "java-full-stack": {
     "slug": "java-full-stack",
     "title": "Java Full Stack",
