@@ -3,10 +3,11 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import {
   Clock, MonitorSmartphone, Download, CheckCircle2, GraduationCap,
-  ArrowRight, ArrowLeft, BookOpen, Layers, Target,
+  ArrowRight, BookOpen, Layers, Target,
 } from 'lucide-react'
 import RegisterTrigger from '@/components/RegisterTrigger'
 import { curricula, curriculumSlugs } from '@/lib/curriculum'
+import CurriculumBackLink from './CurriculumBackLink'
 
 const siteUrl = 'https://www.xpertsedgetech.com'
 
@@ -72,12 +73,7 @@ export default async function CurriculumPage({
       <section className="relative overflow-hidden border-b border-border pt-28 pb-16">
         <div className="absolute inset-0 -z-10 opacity-40 bg-[radial-gradient(60%_60%_at_50%_0%,var(--primary)/15,transparent)]" />
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Link
-            href="/training-services"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors mb-6"
-          >
-            <ArrowLeft size={14} /> All Courses
-          </Link>
+          <CurriculumBackLink slug={slug} />
 
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-primary mb-3">
             <GraduationCap size={14} /> Course Curriculum
