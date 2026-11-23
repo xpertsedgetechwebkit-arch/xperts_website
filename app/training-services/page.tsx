@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
-  ArrowRight, Code2, FlaskConical, BookOpen, Award, PlayCircle,
+  ArrowRight, Code2, FlaskConical, BookOpen, Award,
 } from 'lucide-react'
 
 const fadeUp = {
@@ -19,7 +19,7 @@ const trainingCards = [
     gradient: 'from-emerald-500 via-green-500 to-teal-500',
     desc: 'Frontend to full stack tracks — Java Full Stack, MEAN, MERN, and Next.js with job-ready projects.',
     items: ['Java Full Stack', 'MEAN Stack', 'MERN Stack', 'Next.js'],
-    href: '/courses?category=Web+Development',
+    href: '/training-services/web-development',
     cta: 'Explore Courses',
   },
   {

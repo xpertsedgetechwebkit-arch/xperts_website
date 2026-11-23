@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion, useInView, AnimatePresence } from 'framer-motion'
 import {
   FlaskConical, Cpu, Globe, Code2, Smartphone, GitBranch,
@@ -359,14 +360,12 @@ function CourseModal({ course, onClose }: { course: Course; onClose: () => void 
 // ─── Category card (Level 1) ─────────────────────────────────────────────────
 function CategoryCard({
   meta,
-  count,
   previews,
   onExplore,
   index,
   inView,
 }: {
   meta: typeof categoryMeta[0]
-  count: number
   previews: string[]
   onExplore: () => void
   index: number
@@ -534,6 +533,7 @@ function CourseCard({
 
 // ─── Main Section ─────────────────────────────────────────────────────────────
 export default function Services({ initialCategory }: { initialCategory?: string }) {
+  const router = useRouter()
   const ref = useRef(null)
   const inView = useInView(ref, { once: true, margin: '-80px' })
   const validInitial =
@@ -620,9 +620,8 @@ export default function Services({ initialCategory }: { initialCategory?: string
                     <CategoryCard
                       key={meta.key}
                       meta={meta}
-                      count={inCat.length}
                       previews={inCat.map((c) => c.title)}
-                      onExplore={() => setActiveCategory(meta.key)}
+                      onExplore={() => meta.key === 'Web Development' ? router.push('/training-services/web-development') : setActiveCategory(meta.key)}
                       index={i}
                       inView={inView}
                     />
